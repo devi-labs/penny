@@ -443,6 +443,9 @@ async function startSlackApp({ config, anthropic, octokit, storage, brain }) {
           owner,
           repo,
           task: taskBlock.task,
+          constraints: taskBlock.constraints,
+          acceptance: taskBlock.acceptance,
+          context: taskBlock.context,
         });
 
         // Handle clarification response

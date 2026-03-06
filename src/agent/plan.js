@@ -42,7 +42,7 @@ function parsePlanJson(extracted) {
   return null;
 }
 
-async function claudeSandboxPlan({ anthropic, model, owner, repo, task, defaultBranch, threadMemory, repoMemory, repoContext, summaryMemory, threadKey, jobId, recordThreadError }) {
+async function claudeSandboxPlan({ anthropic, model, owner, repo, task, constraints, acceptance, context, defaultBranch, threadMemory, repoMemory, repoContext, repoFacts, summaryMemory, threadKey, jobId, recordThreadError }) {
   if (!anthropic) throw new Error('ANTHROPIC_API_KEY missing');
 
   const system =
@@ -58,6 +58,20 @@ async function claudeSandboxPlan({ anthropic, model, owner, repo, task, defaultB
         `- Top-level paths: ${(repoContext.rootPaths || []).join(', ') || '(empty repo)'}`,
         `- Description: ${(repoContext.description || '').slice(0, 200)}`,
         `- README (excerpt): ${(repoContext.readmeSnippet || '').slice(0, 1500)}`,
+      ].join('\n')
+    : '';
+
+  const repoFactsBlock = repoFacts
+    ? [
+        '',
+        'Detected repo facts (from scanning cloned repo):',
+        `- Language: ${repoFacts.language || 'unknown'}`,
+        `- Framework: ${repoFacts.framework || 'none detected'}`,
+        `- Package manager: ${repoFacts.packageManager || 'none'}`,
+        `- Build command: ${repoFacts.buildCommand || 'none'}`,
+        `- Test command: ${repoFacts.testCommand || 'none'}`,
+        `- Has CI: ${repoFacts.hasCI ? 'yes' : 'no'}`,
+        `- Key files: ${(repoFacts.keyFiles || []).join(', ') || '(empty)'}`,
       ].join('\n')
     : '';
 
@@ -123,6 +137,7 @@ async function claudeSandboxPlan({ anthropic, model, owner, repo, task, defaultB
     '- IMPORTANT: Output MUST be raw JSON only (no ``` fences).',
     '- Keep prBody and summaryBullets brief (1-2 short sentences) so the full plan fits in one response.',
     repoContextBlock,
+    repoFactsBlock,
     lastErrorHint,
     summaryBlock,
     '',
@@ -135,6 +150,9 @@ async function claudeSandboxPlan({ anthropic, model, owner, repo, task, defaultB
     `Repo: ${owner}/${repo}`,
     `Default branch: ${defaultBranch}`,
     `Task: ${task}`,
+    constraints ? `Constraints: ${constraints}` : '',
+    acceptance ? `Acceptance criteria: ${acceptance}` : '',
+    context ? `Additional context: ${context}` : '',
     '',
     'Output must be valid JSON only.',
   ].join('\n');

@@ -31,7 +31,17 @@ function parseTaskBlock(text) {
   const repoText = repoLine ? repoLine[1].trim() : '';
   const repoRef = repoText ? (parseOwnerRepo(repoText) || parseGitHubRepoUrl(repoText)) : null;
 
-  return { repoRef, task };
+  const constraintsLine = (text || '').match(/^\s*constraints?\s*:\s*([^\n]+)\s*$/im);
+  const acceptanceLine = (text || '').match(/^\s*acceptance\s*:\s*([^\n]+)\s*$/im);
+  const contextLine = (text || '').match(/^\s*context\s*:\s*([^\n]+)\s*$/im);
+
+  return {
+    repoRef,
+    task,
+    constraints: constraintsLine ? constraintsLine[1].trim() : null,
+    acceptance: acceptanceLine ? acceptanceLine[1].trim() : null,
+    context: contextLine ? contextLine[1].trim() : null,
+  };
 }
 
 function parseGsUri(text) {

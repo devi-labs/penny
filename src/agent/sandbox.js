@@ -22,7 +22,40 @@ function buildPRBodyFromPlan({ task, plan }) {
   return body.trim() + '\n';
 }
 
-async function sandboxFastPR({ octokit, anthropic, model, config, sayProgress, threadMemory, repoMemory, repoContext, summaryMemory, threadKey, recordThreadError, owner, repo, task }) {
+function detectRepoFacts(jobDir) {
+  const facts = { language: null, framework: null, packageManager: null, buildCommand: null, testCommand: null, hasCI: false, keyFiles: [] };
+  try {
+    const files = fs.readdirSync(jobDir);
+    facts.keyFiles = files.slice(0, 50);
+
+    if (files.includes('package.json')) {
+      facts.packageManager = 'npm';
+      try {
+        const pkg = JSON.parse(fs.readFileSync(path.join(jobDir, 'package.json'), 'utf8'));
+        facts.language = 'javascript';
+        if (pkg.scripts?.build) facts.buildCommand = `npm run build`;
+        if (pkg.scripts?.test) facts.testCommand = `npm test`;
+        const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
+        if (allDeps.react) facts.framework = 'react';
+        else if (allDeps.next) facts.framework = 'next';
+        else if (allDeps.vue) facts.framework = 'vue';
+        else if (allDeps.express) facts.framework = 'express';
+        else if (allDeps.fastify) facts.framework = 'fastify';
+        if (allDeps.typescript) facts.language = 'typescript';
+      } catch {}
+    }
+    if (files.includes('yarn.lock')) facts.packageManager = 'yarn';
+    if (files.includes('pnpm-lock.yaml')) facts.packageManager = 'pnpm';
+    if (files.includes('requirements.txt') || files.includes('setup.py') || files.includes('pyproject.toml')) facts.language = facts.language || 'python';
+    if (files.includes('Cargo.toml')) facts.language = facts.language || 'rust';
+    if (files.includes('go.mod')) facts.language = facts.language || 'go';
+    if (files.includes('.github')) facts.hasCI = true;
+    if (files.includes('.gitlab-ci.yml')) facts.hasCI = true;
+  } catch {}
+  return facts;
+}
+
+async function sandboxFastPR({ octokit, anthropic, model, config, sayProgress, threadMemory, repoMemory, repoContext, summaryMemory, threadKey, recordThreadError, owner, repo, task, constraints, acceptance, context }) {
   if (!octokit) throw new Error('GITHUB_TOKEN missing');
   if (!config.github.token) throw new Error('GITHUB_TOKEN missing in container');
   if (!anthropic) throw new Error('ANTHROPIC_API_KEY missing');
@@ -108,6 +141,10 @@ async function sandboxFastPR({ octokit, anthropic, model, config, sayProgress, t
       throw new Error(`git checkout failed:\n${safeLogChunk(r.err || r.out)}`);
     }
 
+    // Repo inventory (detect language, framework, build/test commands)
+    await sayProgress?.(`🔍 [${jobId}] Scanning repo...`);
+    const repoFacts = detectRepoFacts(jobDir);
+
     // Plan
     await sayProgress?.(`🧠 [${jobId}] Planning...`);
     const plan = await claudeSandboxPlan({
@@ -116,10 +153,14 @@ async function sandboxFastPR({ octokit, anthropic, model, config, sayProgress, t
       owner,
       repo,
       task,
+      constraints,
+      acceptance,
+      context,
       defaultBranch,
       threadMemory,
       repoMemory,
       repoContext,
+      repoFacts,
       summaryMemory,
       threadKey,
       jobId,

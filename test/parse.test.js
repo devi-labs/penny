@@ -108,6 +108,23 @@ describe('parseTaskBlock', () => {
     assert.equal(parseTaskBlock('just some random text'), null);
   });
 
+  it('parses optional constraints, acceptance, and context fields', () => {
+    const text = 'repo: org/repo\ntask: add login page\nconstraints: no external libraries\nacceptance: user can log in\ncontext: this is a next.js app';
+    const result = parseTaskBlock(text);
+    assert.equal(result.task, 'add login page');
+    assert.equal(result.constraints, 'no external libraries');
+    assert.equal(result.acceptance, 'user can log in');
+    assert.equal(result.context, 'this is a next.js app');
+  });
+
+  it('returns null for optional fields when not provided', () => {
+    const text = 'task: fix the bug';
+    const result = parseTaskBlock(text);
+    assert.equal(result.constraints, null);
+    assert.equal(result.acceptance, null);
+    assert.equal(result.context, null);
+  });
+
   it('parses task with GitHub URL repo', () => {
     // parseOwnerRepo matches first on the raw text, picking up github.com/org;
     // only a bare owner/repo (no URL) goes through parseOwnerRepo cleanly.

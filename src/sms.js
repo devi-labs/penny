@@ -233,6 +233,9 @@ async function startSmsApp({ config, anthropic, openai, octokit, storage, brain,
           recordThreadError: brain.recordThreadError,
           owner, repo,
           task: taskBlock.task,
+          constraints: taskBlock.constraints,
+          acceptance: taskBlock.acceptance,
+          context: taskBlock.context,
         });
 
         if (result.needsClarification) {
