@@ -191,6 +191,20 @@ function createBrain({ storage, bucket, prefix }) {
     return `sms:${safe}`;
   }
 
+  async function listRepos() {
+    const reposDir = path.join(LOCAL_BRAIN_DIR, prefix, 'repos');
+    try {
+      if (!fs.existsSync(reposDir)) return [];
+      const files = fs.readdirSync(reposDir).filter(f => f.endsWith('.json'));
+      return files.map(f => {
+        try {
+          const data = JSON.parse(fs.readFileSync(path.join(reposDir, f), 'utf8'));
+          return { name: data.name || f.replace('.json', ''), language: data.language, description: data.description };
+        } catch { return null; }
+      }).filter(Boolean);
+    } catch { return []; }
+  }
+
   return {
     enabled,
     threadKeyFromEvent,
@@ -199,6 +213,7 @@ function createBrain({ storage, bucket, prefix }) {
     saveThread,
     loadRepo,
     saveRepo,
+    listRepos,
     recordThreadError,
     sanitizePlanForStorage,
     loadSummary,

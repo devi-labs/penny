@@ -68,6 +68,13 @@ async function startSmsApp({ config, anthropic, openai, octokit, storage, brain,
     : config.twilio.phoneNumber;
 
   async function sendReply(to, text) {
+    // Ensure proper WhatsApp format for the 'to' number
+    let toNumber = to;
+    if (config.twilio.useWhatsApp) {
+      const digits = String(to).replace(/[^0-9+]/g, '');
+      toNumber = `whatsapp:${digits.startsWith('+') ? digits : '+' + digits}`;
+    }
+
     const chunks = [];
     const maxLen = 1500;
     let remaining = text;
@@ -79,7 +86,7 @@ async function startSmsApp({ config, anthropic, openai, octokit, storage, brain,
       await twilioClient.messages.create({
         body: chunk,
         from: fromNumber,
-        to,
+        to: toNumber,
       });
     }
   }
@@ -156,6 +163,18 @@ async function startSmsApp({ config, anthropic, openai, octokit, storage, brain,
           lastClaudeRawSnippet: null,
         });
         await sendReply(incomingFrom, '✅ Brain reset.');
+        return;
+      }
+
+      // List indexed repos
+      if (lower === 'repos' || lower === 'list repos') {
+        const repoList = await brain.listRepos();
+        if (!repoList.length) {
+          await sendReply(incomingFrom, 'No repos indexed yet. Set OPENCLAW_REPOS or wait for auto-discovery.');
+          return;
+        }
+        const list = repoList.map(r => `• ${r.name} (${r.language || '?'})`).join('\n');
+        await sendReply(incomingFrom, `📦 Indexed repos:\n${list}`);
         return;
       }
 
@@ -376,13 +395,43 @@ async function startSmsApp({ config, anthropic, openai, octokit, storage, brain,
         return;
       }
 
+      // Load conversation history from brain
+      const historyKey = `${threadKey}:history`;
+      const historyState = await brain.loadThread(historyKey);
+      const history = Array.isArray(historyState?.messages) ? historyState.messages : [];
+
+      // Add current message
+      history.push({ role: 'user', content: messageBody });
+
+      // Keep last 20 messages to stay within token limits
+      const trimmed = history.slice(-20);
+
+      // Build repo context
+      const indexedRepos = await brain.listRepos();
+      const repoContext = indexedRepos.length
+        ? `\nUser's repos:\n${indexedRepos.map(r => `- ${r.name} (${r.language || '?'}): ${r.description || 'no description'}`).join('\n')}`
+        : '';
+
+      const systemPrompt = [
+        'You are OpenClaw, a helpful assistant via SMS/WhatsApp. Be very concise.',
+        'You can create PRs (user sends "repo: owner/repo" + "task: ..."), send emails ("email send ..."), and check brain memory.',
+        threadState?.lastRepo ? `User last worked on repo: ${threadState.lastRepo}` : '',
+        threadState?.lastTask ? `Last task: ${threadState.lastTask}` : '',
+        repoContext,
+      ].filter(Boolean).join('\n');
+
       const resp = await anthropic.messages.create({
         model: config.anthropic.model,
         max_tokens: 500,
-        system: 'You are OpenClaw, a helpful assistant via SMS. Be very concise.',
-        messages: [{ role: 'user', content: messageBody }],
+        system: systemPrompt,
+        messages: trimmed,
       });
       const text = resp.content?.find((c) => c.type === 'text')?.text?.trim() || '(No response)';
+
+      // Save assistant reply to history
+      trimmed.push({ role: 'assistant', content: text });
+      await brain.saveThread(historyKey, { messages: trimmed.slice(-20) });
+
       await sendReply(incomingFrom, text);
 
     } catch (err) {

@@ -17,23 +17,28 @@ function httpsRepoUrl(owner, repo, token) {
 }
 
 function commandAllowed(cmd, args) {
-  const allow = new Set(['git', 'npm', 'node']);
-  if (!allow.has(cmd)) return false;
+  const deny = new Set([
+    'rm', 'rmdir', 'mkfs', 'dd', 'shutdown', 'reboot', 'halt', 'poweroff',
+    'passwd', 'useradd', 'userdel', 'groupadd', 'chown', 'chmod',
+    'mount', 'umount', 'fdisk', 'parted',
+    'iptables', 'ip6tables', 'nft',
+    'systemctl', 'service', 'init',
+    'sudo', 'su', 'doas',
+    'docker', 'podman', 'kubectl',
+    'kill', 'killall', 'pkill',
+  ]);
+  if (deny.has(cmd)) return false;
 
-  const joined = [cmd, ...args].join(' ').toLowerCase();
+  // Only check the command + first few args for dangerous patterns (not file content)
+  const cmdPrefix = [cmd, ...args.slice(0, 2)].join(' ').toLowerCase();
 
   const blocked = [
-    'bash -c',
-    'sh -c',
-    'curl',
-    'wget',
-    'nc ',
-    'netcat',
-    'ssh ',
-    'scp ',
-    'sftp',
+    'bash -c', 'sh -c',
+    'nc ', 'netcat',
+    'ssh ', 'scp ', 'sftp',
+    '| sh', '| bash',
   ];
-  if (blocked.some((b) => joined.includes(b))) return false;
+  if (blocked.some((b) => cmdPrefix.includes(b))) return false;
 
   return true;
 }

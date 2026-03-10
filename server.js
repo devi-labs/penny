@@ -8,6 +8,7 @@ const { createOpenAIClient } = require('./src/clients/openai');
 const { createOctokit } = require('./src/clients/github');
 const { createBrain } = require('./src/brain/brain');
 const { createGmailClient } = require('./src/clients/gmail');
+const { indexRepos } = require('./src/repo-index');
 
 (async () => {
   console.log(`Starting OpenClaw (platform: ${config.messagingPlatform})...`);
@@ -46,4 +47,8 @@ const { createGmailClient } = require('./src/clients/gmail');
   }
 
   console.log(`OpenClaw started in ${Date.now() - startTime}ms`);
+
+  // Index repos in background (don't block startup)
+  const repoList = (process.env.OPENCLAW_REPOS || '').split(',').map(s => s.trim()).filter(Boolean);
+  indexRepos({ octokit, brain, repos: repoList }).catch(e => console.error('Repo index error:', e?.message || e));
 })();
