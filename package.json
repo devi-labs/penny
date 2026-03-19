@@ -10,11 +10,11 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.78.0",
-    "@google-cloud/storage": "^5.18.3",
+    "@anthropic-ai/sdk": "^0.80.0",
+    "@google-cloud/storage": "^7.19.0",
     "@octokit/rest": "^22.0.1",
-    "express": "^4.21.0",
+    "express": "^5.2.1",
     "googleapis": "^171.4.0",
-    "openai": "^6.27.0"
+    "openai": "^6.32.0"
   }
 }
