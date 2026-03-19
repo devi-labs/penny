@@ -19,7 +19,7 @@ No coding experience needed to get it running. This guide walks you through ever
 - 📅 **Manage your calendar** — View, create, and update events
 - ✅ **Todo list** — Add, complete, and manage your Google Tasks
 - 🍽️ **Make reservations** — Book restaurants via OpenTable or have AI call them for you
-- 📰 **Daily & weekly roundups** — Get news, Twitter, and LinkedIn digests emailed automatically
+- 📰 **Daily & weekly roundups** — Get your schedule, todos, and news delivered via Telegram and/or email every morning
 - 🧠 **Remembers everything** — Conversations, skills, and context persist across sessions
 - 🔒 **Safe** — Sandboxed execution, rate limiting, command denylist, access control
 
@@ -160,7 +160,7 @@ base64 encode "hello world"
 | `email check` | Show recent emails |
 | `email send user@example.com "Subject" Body` | Send an email (auto-humanized) |
 | `cal` | Show today's calendar events |
-| `cal create "Lunch" 2026-03-20 12:00 1h` | Create a calendar event |
+| `cal create "Lunch" 03/20 12pm 1 hour` | Create a calendar event |
 | `todo list` | Show your todos |
 | `todo add Buy groceries` | Add a todo |
 | `todo done <id>` | Complete a todo |
@@ -319,19 +319,20 @@ Restart OpenClaw. You now have email, calendar, and todos working.
 
 ---
 
-## Roundup Emails
+## Daily & Weekly Roundups
 
-OpenClaw sends two automated email digests:
+OpenClaw sends you a morning briefing every day at 8am — right in your Telegram chat (and optionally via email too). It automatically delivers to anyone who's messaged the bot.
 
-- **Daily** — News topics + Twitter + LinkedIn, sent every morning
-- **Weekly** — Deep-dive topics, sent on Saturday (configurable)
+**Daily roundup includes:**
+- 📅 Today's calendar events
+- ✅ Open todos
+- 📰 News, Twitter, and LinkedIn updates
+
+**Weekly roundup** — Deep-dive news topics, sent on Saturday (configurable)
 
 Add to `.env`:
 
 ```
-ROUNDUP_EMAIL_TO=you@email.com
-ROUNDUP_EMAIL_FROM=you@gmail.com
-
 # Daily — news topics, Twitter, LinkedIn
 ROUNDUP_DAILY_TOPICS=AI,startups,cybersecurity
 ROUNDUP_TWITTER_HANDLES=elonmusk,naval,paulg
@@ -342,14 +343,21 @@ ROUNDUP_WEEKLY_TOPICS=machine learning,venture capital
 ROUNDUP_WEEKLY_DAY=saturday
 ```
 
-**Extra keys needed:**
+Calendar and todos are included automatically if you have Google APIs configured (see above). News topics work with no API keys (uses Google News RSS).
+
+To also receive roundups via email, add:
+
+```
+ROUNDUP_EMAIL_TO=you@email.com
+ROUNDUP_EMAIL_FROM=you@gmail.com
+```
+
+**Test it:** Send `roundup` or `roundup daily` in your bot chat to get an instant preview.
 
 | Key | What | Required? |
 |---|---|---|
 | `X_BEARER_TOKEN` | For Twitter. Get free at [developer.x.com](https://developer.x.com) | Only for Twitter |
-| Gmail OAuth | For sending the email | Yes (see Google APIs above) |
-
-News and LinkedIn work automatically with no API keys (uses Google News RSS).
+| Gmail OAuth | For email delivery | Only if you want email (see Google APIs above) |
 
 ---
 
@@ -382,7 +390,7 @@ src/
 ├── config.js                # Environment config
 ├── skills.js                # Self-healing skill generator (Voyager/Reflexion)
 ├── reservations.js          # Restaurant booking (OpenTable + Bland.ai)
-├── roundup.js               # Weekly digest emails (Twitter/LinkedIn/news)
+├── roundup.js               # Daily & weekly digests (schedule, todos, news)
 ├── brain/
 │   └── brain.js             # Persistent memory (local fs + GCS backup)
 ├── agent/

@@ -34,7 +34,7 @@ Before publishing to GitHub, verify:
 - [x] Unit tests for JSON plan extraction/repair (7 tests)
 - [x] Unit tests for brain local storage, CRUD, summary cap (11 tests)
 - [x] Unit tests for phone matching and allowlist logic (11 tests)
-- [x] All 56 tests passing via `npm test`
+- [x] All 59 tests passing via `npm test`
 
 ## ✅ Features Documented
 

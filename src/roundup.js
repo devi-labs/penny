@@ -165,7 +165,7 @@ async function sendDailyRoundup({ config, anthropic, gmail, calendar, tasks, bra
   // News
   if (dailyTopics.length) {
     for (const topic of dailyTopics) {
-      const articles = await fetchNewsRSS(topic, 5);
+      const articles = await fetchNewsRSS(topic, 2);
       if (articles.length) {
         sections.push({
           heading: `📰 ${topic}`,
@@ -176,6 +176,9 @@ async function sendDailyRoundup({ config, anthropic, gmail, calendar, tasks, bra
   }
 
   // Twitter
+  if (handles.length && !rc.xBearerToken) {
+    console.log('[roundup] Twitter handles configured but X_BEARER_TOKEN is missing — skipping Twitter');
+  }
   if (handles.length && rc.xBearerToken) {
     const allTweets = [];
     for (const handle of handles) {
@@ -206,8 +209,14 @@ async function sendDailyRoundup({ config, anthropic, gmail, calendar, tasks, bra
 
   const subject = `OpenClaw Daily — ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`;
   if (gmail?.enabled && rc.emailTo) {
-    await gmail.sendEmail({ to: rc.emailTo, subject, body });
-    console.log(`[roundup] Daily roundup sent to ${rc.emailTo}`);
+    try {
+      await gmail.sendEmail({ to: rc.emailTo, subject, body, from: rc.emailFrom || undefined });
+      console.log(`[roundup] Daily roundup emailed to ${rc.emailTo}`);
+    } catch (err) {
+      console.error('[roundup] Email send failed:', err?.message || err);
+    }
+  } else {
+    console.log(`[roundup] Email skipped — gmail.enabled=${gmail?.enabled}, emailTo=${rc.emailTo || '(empty)'}`);
   }
   await sendTelegramDigest(config, brain, body, subject);
   return `${subject}\n\n${body}`;

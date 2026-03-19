@@ -19,10 +19,13 @@ async function parseReservationRequest(anthropic, model, text) {
     messages: [{ role: 'user', content: text }],
   });
 
-  const raw = resp.content?.find(c => c.type === 'text')?.text?.trim() || '';
+  let raw = resp.content?.find(c => c.type === 'text')?.text?.trim() || '';
+  // Strip markdown code fences if Claude wraps the JSON
+  raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
   try {
     return JSON.parse(raw);
-  } catch {
+  } catch (err) {
+    console.error('[reservations] JSON parse failed:', raw.slice(0, 300));
     return null;
   }
 }
