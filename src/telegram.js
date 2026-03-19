@@ -682,6 +682,43 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
         const roundupCmd = lower.replace(/^roundup\s*/, '').trim();
         const deps = { config, anthropic, gmail, calendar, tasks, brain };
 
+        if (roundupCmd.startsWith('add ')) {
+          const topic = messageBody.replace(/^roundup\s+add\s+/i, '').trim();
+          if (!topic) { await sendReply(chatId, 'Usage: roundup add <topic>'); return; }
+          const topics = await brain.loadRoundupTopics();
+          if (topics.includes(topic.toLowerCase())) {
+            await sendReply(chatId, `"${topic}" is already in your roundup.`);
+            return;
+          }
+          topics.push(topic.toLowerCase());
+          await brain.saveRoundupTopics(topics);
+          await sendReply(chatId, `✅ Added "${topic}" to your daily roundup.`);
+          return;
+        }
+
+        if (roundupCmd.startsWith('remove ') || roundupCmd.startsWith('delete ')) {
+          const topic = messageBody.replace(/^roundup\s+(?:remove|delete)\s+/i, '').trim().toLowerCase();
+          if (!topic) { await sendReply(chatId, 'Usage: roundup remove <topic>'); return; }
+          const topics = await brain.loadRoundupTopics();
+          const filtered = topics.filter(t => t !== topic);
+          if (filtered.length === topics.length) {
+            await sendReply(chatId, `"${topic}" wasn't in your roundup.`);
+            return;
+          }
+          await brain.saveRoundupTopics(filtered);
+          await sendReply(chatId, `✅ Removed "${topic}" from your daily roundup.`);
+          return;
+        }
+
+        if (roundupCmd === 'topics' || roundupCmd === 'list') {
+          const brainTopics = await brain.loadRoundupTopics();
+          const envTopics = (config.roundup.dailyTopics || '').split(',').map(s => s.trim()).filter(Boolean);
+          const all = [...new Set([...envTopics, ...brainTopics])];
+          if (!all.length) { await sendReply(chatId, 'No roundup topics configured.'); return; }
+          await sendReply(chatId, `📰 Roundup topics:\n\n${all.map(t => `• ${t}`).join('\n')}`);
+          return;
+        }
+
         if (roundupCmd === 'daily' || roundupCmd === 'test' || roundupCmd === '') {
           await sendReply(chatId, '📰 Sending daily roundup...');
           try {
@@ -704,7 +741,7 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
           return;
         }
 
-        await sendReply(chatId, 'Roundup commands:\n• roundup daily — send daily digest now\n• roundup weekly — send weekly digest now');
+        await sendReply(chatId, 'Roundup commands:\n• roundup — send daily digest now\n• roundup weekly — send weekly digest\n• roundup topics — see current topics\n• roundup add <topic> — add a topic\n• roundup remove <topic> — remove a topic');
         return;
       }
 

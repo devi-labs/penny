@@ -27,10 +27,40 @@ async function sendTelegramDigest(config, brain, body, subject) {
   }
 }
 
-// Fetch recent activity for a Twitter/X handle via Google News RSS (free, no API key needed)
+// Fetch recent tweets via RSSHub (free, no API key needed), with Google News fallback
 async function fetchTweets(bearerToken, handle) {
+  // Try RSSHub public instances for actual tweet content
+  const rsshubHosts = ['https://rsshub.app', 'https://rsshub.rssforever.com'];
+  for (const host of rsshubHosts) {
+    try {
+      const resp = await fetch(`${host}/twitter/user/${encodeURIComponent(handle)}`, {
+        headers: { 'User-Agent': 'OpenClaw/1.0' },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!resp.ok) continue;
+      const xml = await resp.text();
+      const items = [];
+      const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+      let match;
+      while ((match = itemRegex.exec(xml)) !== null && items.length < 5) {
+        const block = match[1];
+        const title = (block.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) || block.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
+        const link = (block.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '';
+        const pubDate = (block.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '';
+        if (title) items.push({ text: title.replace(/<[^>]+>/g, '').trim(), date: pubDate ? new Date(pubDate).toLocaleDateString() : '', link });
+      }
+      if (items.length) {
+        console.log(`[roundup] Got ${items.length} tweets for @${handle} via RSSHub`);
+        return items;
+      }
+    } catch (err) {
+      // Try next host
+    }
+  }
+
+  // Fallback: Google News RSS for mentions about this person
   try {
-    // Use Google News RSS to find recent mentions/news about this person
+    console.log(`[roundup] RSSHub unavailable for @${handle}, falling back to Google News`);
     const articles = await fetchNewsRSS(`"@${handle}" OR "${handle}" twitter`, 3);
     return articles.map(a => ({
       text: a.title,
@@ -106,7 +136,9 @@ async function compileDigest(anthropic, model, sections, kind) {
 
 async function sendDailyRoundup({ config, anthropic, gmail, calendar, tasks, brain }) {
   const rc = config.roundup;
-  const dailyTopics = parseList(rc.dailyTopics);
+  const envTopics = parseList(rc.dailyTopics);
+  const brainTopics = brain ? await brain.loadRoundupTopics() : [];
+  const dailyTopics = [...new Set([...envTopics, ...brainTopics])];
   const handles = parseList(rc.twitterHandles);
   const linkedinNames = parseList(rc.linkedinNames);
 

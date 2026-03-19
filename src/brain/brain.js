@@ -234,6 +234,17 @@ function createBrain({ storage, bucket, prefix }) {
     await writeJson(objPath, existing);
   }
 
+  async function loadRoundupTopics() {
+    const objPath = brainObjectPath(prefix, 'global', 'roundup-topics');
+    const data = await readJson(objPath);
+    return Array.isArray(data?.topics) ? data.topics : [];
+  }
+
+  async function saveRoundupTopics(topics) {
+    const objPath = brainObjectPath(prefix, 'global', 'roundup-topics');
+    await writeJson(objPath, { topics, updatedAt: nowIso() });
+  }
+
   async function saveActiveChat(chatId) {
     const objPath = brainObjectPath(prefix, 'global', 'active-chats');
     const existing = (await readJson(objPath)) || { chatIds: [] };
@@ -283,6 +294,8 @@ function createBrain({ storage, bucket, prefix }) {
     saveSkill,
     deleteSkill,
     recordSkillError,
+    loadRoundupTopics,
+    saveRoundupTopics,
     saveActiveChat,
     loadActiveChats,
   };
