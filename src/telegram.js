@@ -98,6 +98,8 @@ function helpText() {
     '"roundup help", "reserve help", or "github help" for details.',
     '',
     'Having issues? Type "support" and I\'ll get help for you.',
+    '',
+    `v${require('../package.json').version}`,
   ].join('\n');
 }
 
@@ -329,6 +331,13 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
           logError('GCE stop failed, forcing process exit:', err?.message || err);
           setTimeout(() => process.exit(1), 500);
         }
+        return;
+      }
+
+      // Version
+      if (lower === 'version' || lower === '/version') {
+        const v = require('../package.json').version;
+        await sendReply(chatId, `v${v}`);
         return;
       }
 
