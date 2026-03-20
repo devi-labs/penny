@@ -610,6 +610,7 @@ async function handleChallengeResponse({
 
     await brain.saveThread(threadKey, {
       learnProgress: {
+        ...progress,
         currentLesson: nextLesson,
         completed,
         lastActivity: new Date().toISOString().slice(0, 10),
