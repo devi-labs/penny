@@ -1,328 +1,234 @@
 # Penny
 
-**Your Personal AI Assistant & Tutor.** Penny is an AI assistant you control from Telegram — she manages your tasks, teaches you to code, handles your email and calendar, and can even write code and open PRs on GitHub.
-
-Powered by Claude. Describe what you want in plain English, and Penny figures it out — all from a Telegram chat.
-
-She also learns new skills on the fly. Ask her to do something she doesn't know how to do, and she'll write the code, test it, fix it if it breaks, and remember it for next time.
-
-No coding experience needed to get it running. This guide walks you through every step.
+**Your Personal AI Assistant & Tutor.** Penny lives in your Telegram — she manages your to-do lists, calendar, email, daily news, restaurant reservations, and even teaches you to code. Just text her like you would a friend.
 
 ---
 
-## What Can It Do?
+## Getting Started
 
-- 🤖 **Write code for you** — Describe a task, get a GitHub pull request
-- 🎓 **Learn to code** — Interactive coding tutor with structured lessons, challenges, and progress tracking right in Telegram
-- 🧠 **Learn new skills** — Ask it anything actionable and it generates, tests, and self-heals code on the fly
-- 💬 **Chat on Telegram** — Just text it like you would a friend
-- 📧 **Manage your email** — Check, search, and send emails (auto-humanized so they don't sound like AI)
-- 📅 **Manage your calendar** — View, create, and update events
-- ✅ **Todo list** — Add, complete, and manage your Google Tasks
-- 🍽️ **Make reservations** — Book restaurants via OpenTable or have AI call them for you
-- 📰 **Daily & weekly roundups** — Get your schedule, todos, tweets, and news delivered via Telegram every morning
-- 💬 **Natural language** — Talk naturally ("what's on my schedule?", "remind me to call Bob", "any new emails?")
-- 🧠 **Remembers everything** — Conversations, skills, and context persist across sessions
-- 🔒 **Safe** — Sandboxed execution, rate limiting, command denylist, access control
+When you first open your Penny bot in Telegram, she'll greet you:
+
+> "Welcome to Penny - Personal AI Assistant & Tutor. Give me the secret passcode for the room"
+
+Send the passcode your admin gave you. Once you're in, type **help** — this will show you everything Penny can do.
 
 ---
 
-## Before You Start — The Essentials
+## What Can Penny Do?
 
-You only need **two things** to get started. Everything else is optional.
+Here's a quick overview. Each feature has its own help command so you can dive deeper.
 
-### Step 1: Create a Telegram Bot (required)
+### To-Do Lists
 
-This is the bot you'll chat with on Telegram.
+Type **`todo help`** for the full rundown.
 
-1. Open Telegram and search for **@BotFather** (it has a blue checkmark)
-2. Send it the message: `/newbot`
-3. BotFather will ask you for a **name** (e.g. `My Penny`) and a **username** (e.g. `my_penny_bot`)
-4. It will reply with a **token** that looks like `123456789:ABCdefGHI-jklMNOpqr` — **copy this and save it somewhere safe**
-
-> 💡 This token is secret. Don't share it with anyone.
-
-### Step 2: Get an Anthropic API Key (required)
-
-This connects Penny to Claude, the AI that does the thinking and coding.
-
-1. Go to [console.anthropic.com](https://console.anthropic.com/)
-2. Create an account (or sign in)
-3. Click **API Keys** in the sidebar
-4. Click **Create Key**
-5. Copy the key — it starts with `sk-ant-`
-
-> 💡 Anthropic gives you some free credits to start. After that, usage is pay-as-you-go (typically a few cents per task).
-
-**That's all you need.** The rest is optional — add features when you're ready.
-
----
-
-## Installation
-
-You'll need to use the **Terminal** (Mac/Linux) or **Command Prompt** (Windows) for these steps. Don't worry — just copy and paste each line.
-
-### 1. Install Node.js
-
-Node.js is what runs Penny. Check if you already have it:
-
-```bash
-node --version
-```
-
-If you see a version number (like `v20.x.x`), you're good. If not:
-
-- **Mac**: Go to [nodejs.org](https://nodejs.org/), download the LTS version, and run the installer
-- **Windows**: Same — download from [nodejs.org](https://nodejs.org/) and run the installer
-- **Linux**: Run `sudo apt install nodejs npm` (Ubuntu/Debian) or `sudo dnf install nodejs` (Fedora)
-
-### 2. Download Penny
-
-```bash
-git clone https://github.com/devi-labs/penny.git
-cd penny
-npm install
-```
-
-> 💡 If `git` isn't installed, download it from [git-scm.com](https://git-scm.com/).
-
-### 3. Set Up Your Configuration
-
-```bash
-cp .env.example .env
-```
-
-Now open the `.env` file in any text editor (Notepad, TextEdit, VS Code — anything works).
-
-Find these lines and fill in the values you got earlier:
+You can create and manage multiple lists. Add items to specific lists by name:
 
 ```
-TELEGRAM_BOT_TOKEN=paste-your-telegram-token-here
-ANTHROPIC_API_KEY=paste-your-anthropic-key-here
+todo add buy groceries
+todo add schedule dentist list Personal
+todo list
+todo done 3
 ```
 
-If you want a joining code to keep strangers out (recommended):
+You can also just talk naturally: *"remind me to call Bob by Friday"* or *"what's on my plate?"*
+
+### Daily Roundup
+
+Type **`roundup help`** to learn more.
+
+Say **`roundup`** anytime and Penny will give you:
+- Your calendar for the day
+- Your to-do list
+- Tweets from people you follow
+- News on topics you care about
+
+You can add and remove topics and Twitter handles from the list anytime. Penny also sends this automatically every morning.
+
+### Email
+
+Type **`email help`** for details.
+
+Draft and send emails to anyone right through your bot. Penny will show you a preview before sending, so nothing goes out without your approval. Emails are rewritten to sound natural — not like AI wrote them.
 
 ```
-TELEGRAM_JOIN_CODE=your-secret-code-here
+check my email
+find emails from Sarah
+email send bob@example.com "Meeting tomorrow" Hey Bob, are we still on for tomorrow?
 ```
 
-Save the file.
+### Calendar
 
-### 4. Start Penny
+Type **`cal help`** for details.
 
-```bash
-node server.js
-```
-
-You should see something like:
+Try *"what's on my schedule for today?"* — Penny can see all your calendars and manage them for you.
 
 ```
-Starting Penny...
-⚡️ Penny Telegram server running on port 8080 (polling mode)
-Claude: enabled | GitHub: enabled | Brain: enabled | Allowed users: (any)
+what's on my schedule?
+any meetings tomorrow?
+cal create "Lunch with team" 03/25 12pm 1 hour
+cal calendars
 ```
 
-**That's it!** Open Telegram, find your bot, and send it a message.
+### Learn to Code
 
-> 💡 If you set a joining code, you'll need to send that code first before the bot responds.
+Type **`learn`** to get started.
 
----
+This is a fun one. Penny will guide you step by step through GitHub, learning how to code, and anything else you add to your list. You'll get gentle nudges during your daily roundup to keep going. You can turn it off anytime with `learn off`.
 
-## How to Use It
+Want to learn something specific? Say **`learn more about <topic>`** anytime and Penny will draft future lessons for you.
 
-Open your bot in Telegram and start chatting. Here are some things you can do:
+### Restaurant Reservations
 
-### Ask it to write code
+Type **`reserve help`** for details.
+
+Two ways to book:
+- **`reserve`** — Penny generates an OpenTable booking link for you
+- **`call`** — Penny actually calls the restaurant and makes the reservation by phone
+
+> Be mindful with `call` — it really does call and reserve a table.
+
+```
+book a table for 4 at Nobu on Saturday at 7pm
+call +13125551234 and reserve dinner for 2 at Carbone Friday 8pm
+```
+
+### GitHub & Code
+
+Penny can write code and open pull requests on your GitHub repos:
 
 ```
 repo: your-username/your-repo
 task: add a health check endpoint to the express server
 ```
 
-### Ask it anything actionable
+She can also answer random questions that need computation — *"convert 72F to celsius"*, *"what day is December 25 2026"*, *"generate a random password"*. She'll write the code, run it, and remember the skill for next time.
 
-Just ask — if it requires computation, data processing, or logic, Penny will generate a skill, run it, and remember it:
+### Support
 
-```
-convert 72°F to celsius
-what day of the week is december 25 2026
-generate a random 16 character password
-base64 encode "hello world"
-```
+If something isn't working right, type your configured support keyword (e.g. `support`) and Penny will send your admin a message with debug info so they can look into it. Keep the description generic but helpful.
 
-### Talk naturally
+---
+
+## Talk Naturally
 
 You don't need to memorize commands. Just say what you need:
 
 | What you say | What happens |
 |---|---|
-| "what's on my schedule today?" | Shows your calendar events |
-| "any meetings tomorrow?" | Calendar events for tomorrow |
+| "what's on my schedule today?" | Shows your calendar |
 | "remind me to call Bob by Friday" | Adds a todo with a due date |
 | "what's on my plate?" | Shows your todo list |
 | "mark 3 as done" | Completes todo #3 |
 | "check my email" | Shows recent emails |
-| "find emails from Sarah" | Searches your inbox |
-| "book dinner for 4 at Nobu on Saturday at 7pm" | Gets an OpenTable link |
-| "catch me up" | Sends the daily news roundup |
+| "catch me up" | Sends the daily roundup |
+| "learn" | Starts your next coding lesson |
+| "book dinner for 4 at Nobu Saturday 7pm" | Gets a reservation link |
 | "what can you do?" | Shows all commands |
 
-### Exact commands
+---
 
-These also work if you prefer them:
+## Quick Reference
 
 | Command | What it does |
 |---|---|
-| `help` | Show all commands |
-| `repo: owner/repo` + `task: do something` | Create a pull request |
-| `tell me about owner/repo` | Get a summary of a GitHub repo |
-| `email send user@example.com "Subject" Body` | Send an email (with preview + confirmation) |
-| `cal create "Lunch" 03/20 12pm 1 hour` | Create a calendar event |
-| `cal calendars` | List all your calendars |
-| `cal default 2` | Set default calendar for new events |
-| `cal delete 3` | Delete event #3 from your last listing |
-| `todo add Buy groceries by Friday` | Add a todo with a due date |
-| `todo done 2` | Complete todo #2 |
-| `roundup` | Get your daily briefing now |
-| `skills list` | See all learned skills |
+| `help` | Show everything Penny can do |
+| `todo help` | To-do list commands |
+| `cal help` | Calendar commands |
+| `email help` | Email commands |
+| `learn` | Start or continue a coding lesson |
+| `learn help` | Learning system commands |
+| `roundup help` | Roundup commands |
+| `reserve help` | Reservation commands |
+| `github help` | GitHub/PR commands |
 | `brain status` | Check if memory is working |
-| `brain reset` | Clear conversation memory |
-| `self destruct` | Shut down the VM |
+| `skills list` | See all learned skills |
 
 ---
 
-## Self-Healing Skill System
+# Setup Guide (For Admins)
 
-Penny learns new skills on the fly using a self-healing architecture inspired by [Voyager](https://voyager.minedojo.org/) and [Reflexion](https://arxiv.org/abs/2303.11366):
-
-1. **Classify** — Claude decides if your message needs code or is just conversation
-2. **Match** — Checks the skill library for an existing skill that fits
-3. **Generate** — If no match, Claude writes a new JavaScript function
-4. **Execute** — Runs the code in a sandboxed VM (no file system, no network abuse, 15s timeout)
-5. **Verify** — Claude checks if the output actually answers your question (Reflexion pattern)
-6. **Self-heal** — If execution or verification fails, the error is fed back to Claude to fix the code (up to 3 attempts). Each failed attempt is remembered so mistakes aren't repeated
-7. **Persist** — Working skills are saved to the brain and reused on similar future requests
-
-Skills are stored in the brain (local filesystem + optional GCS backup) and survive restarts. You can manage them with `skills list` and `skills delete <name>`.
+Everything below is for setting up and deploying Penny. If you're just using the bot, you can stop here.
 
 ---
 
-## Keeping It Running 24/7
+## Requirements
 
-When you close your terminal, Penny stops. If you want it running all the time, you have two options:
+You only need **two things** to get started:
 
-### Option A: Run in the Cloud (Recommended)
+### 1. Create a Telegram Bot
 
-This puts Penny on a Google Cloud VM that's always on. You'll need a [Google Cloud account](https://cloud.google.com/) (free tier available).
+1. Open Telegram and search for **@BotFather** (blue checkmark)
+2. Send: `/newbot`
+3. Give it a name and username
+4. Copy the **token** it gives you — save it somewhere safe
+
+### 2. Get an Anthropic API Key
+
+1. Go to [console.anthropic.com](https://console.anthropic.com/)
+2. Create an account or sign in
+3. Go to **API Keys** → **Create Key**
+4. Copy the key (starts with `sk-ant-`)
+
+---
+
+## Installation
 
 ```bash
-bash deploy-gce.sh .env
-bash setup.sh .env
+git clone https://github.com/devi-labs/penny.git
+cd penny
+npm install
+cp .env.example .env
 ```
 
-### Option B: Run Locally with Docker
+Edit `.env` and add your tokens:
+
+```
+TELEGRAM_BOT_TOKEN=your-telegram-token
+ANTHROPIC_API_KEY=your-anthropic-key
+TELEGRAM_JOIN_CODE=your-secret-passcode
+```
+
+Start it up:
 
 ```bash
-docker build -t penny:local .
-docker run -d --name penny --restart=always --env-file .env -p 8080:8080 penny:local
+node server.js
 ```
 
-To check logs: `docker logs -f penny` · To stop: `docker rm -f penny`
+You should see:
+
+```
+Starting Penny...
+⚡️ Penny Telegram server running on port 8080 (polling mode)
+```
+
+That's it. Open Telegram, find your bot, send the passcode, and you're in.
 
 ---
 
-## Something Not Working?
+## Optional Features
 
-| What's happening | What to do |
-|---|---|
-| Bot doesn't respond at all | Make sure `node server.js` is running and check for errors in the terminal |
-| Bot says "Please send the joining code" | Send the code you set in `TELEGRAM_JOIN_CODE` |
-| "ANTHROPIC_API_KEY missing" | Make sure you added your Anthropic key to the `.env` file |
-| "GITHUB_TOKEN missing" | Add your GitHub token to `.env` (needed for creating PRs) |
-| PR creation fails | Send `brain last error` to see what went wrong |
-| "Google Tasks not configured" | Re-authorize with the Tasks scope (see Google APIs section below) |
-| Bot is slow to respond | Claude is thinking — complex tasks can take 30–60 seconds |
-| Container keeps restarting | Check logs: `docker logs penny --tail 50` |
+Add what you want, skip what you don't.
 
----
-
-## Security
-
-- **Command denylist** — `rm`, `curl`, `wget`, `sudo`, `docker`, and 20+ other dangerous commands are blocked
-- **VM sandbox** — Generated skills run in Node.js `vm` with no `require`, `fs`, `process`, or `eval`
-- **Rate limited** — Configurable per-user rate limiting (default: 20 requests per 30 seconds)
-- **Access control** — Use a joining code and/or user ID allowlist to restrict who can use it
-- **Emails are humanized** — Outgoing emails are rewritten so they don't sound AI-generated
-- **Secrets stay local** — API keys are read from env vars and never exposed to generated code or AI prompts
-- **Temp cleanup** — Cloned repos are deleted after PR creation to prevent disk exhaustion
-
----
-
-# Optional Features
-
-Everything below is optional. Add what you want, skip what you don't.
-
----
-
-## GitHub Pull Requests
-
-Lets Penny push code and create pull requests on your repos.
+### GitHub Pull Requests
 
 1. Go to [github.com/settings/tokens](https://github.com/settings/tokens?type=beta)
-2. Click **Generate new token (classic)** → name it `penny` → check **`repo`** scope → generate
-3. Add to `.env`:
+2. Generate a new token with **`repo`** scope
+3. Add to `.env`: `GITHUB_TOKEN=ghp_your-token`
 
-```
-GITHUB_TOKEN=ghp_your-token-here
-```
+### Google APIs (Email, Calendar, Todos)
 
----
+These share the same credentials. Set up once, get all three.
 
-## Google APIs — Gmail, Calendar, and Todos
-
-These three features share the same credentials. Set up once, and you get all three.
-
-### What you'll enable
-
-| Feature | Google API to enable | OAuth scope |
-|---|---|---|
-| Email (check, search, send) | Gmail API | `https://mail.google.com/` |
-| Calendar (view, create, update) | Google Calendar API | `https://www.googleapis.com/auth/calendar` |
-| Todos (list, add, complete) | Google Tasks API | `https://www.googleapis.com/auth/tasks` |
-
-### Setup (about 10 minutes)
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/) and create a new project (or select one)
-
-2. **Enable all three APIs** — search for each in the search bar and click **Enable**:
-   - Gmail API
-   - Google Calendar API
-   - Tasks API
-
-3. **Set up OAuth consent screen**:
-   - Go to **APIs & Services → OAuth consent screen**
-   - Choose **External**
-   - Fill in the app name (e.g. "Penny")
-   - Add your email as a **test user**
-
-4. **Create OAuth credentials**:
-   - Go to **APIs & Services → Credentials → Create Credentials → OAuth client ID**
-   - Application type: **Web application**
-   - Under **Authorized redirect URIs**, add: `https://developers.google.com/oauthplayground`
-   - Click **Create** → copy the **Client ID** and **Client Secret**
-
-5. **Get a refresh token**:
-   - Go to [OAuth Playground](https://developers.google.com/oauthplayground/)
-   - Click the ⚙️ gear icon → check **"Use your own OAuth credentials"** → paste your Client ID and Secret
-   - In the left panel, select **all three scopes**:
-     - `https://mail.google.com/`
-     - `https://www.googleapis.com/auth/calendar`
-     - `https://www.googleapis.com/auth/tasks`
-   - Click **Authorize APIs** → sign in with your Google account
-   - Click **Exchange authorization code for tokens** → copy the **Refresh Token**
-
-6. **Add to `.env`**:
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) → create/select a project
+2. Enable: **Gmail API**, **Google Calendar API**, **Tasks API**
+3. Set up **OAuth consent screen** (External, add your email as test user)
+4. Create **OAuth client ID** (Web app, redirect URI: `https://developers.google.com/oauthplayground`)
+5. Go to [OAuth Playground](https://developers.google.com/oauthplayground/), use your credentials, authorize all three scopes:
+   - `https://mail.google.com/`
+   - `https://www.googleapis.com/auth/calendar`
+   - `https://www.googleapis.com/auth/tasks`
+6. Add to `.env`:
 
 ```
 GMAIL_CLIENT_ID=your-client-id
@@ -331,105 +237,83 @@ GMAIL_REFRESH_TOKEN=your-refresh-token
 GMAIL_USER_EMAIL=you@gmail.com
 ```
 
-Restart Penny. You now have email, calendar, and todos working.
+### Daily & Weekly Roundups
 
-> 💡 If you already set up Gmail before and want to add calendar/todos, you just need to re-do step 5 with all three scopes selected, then update your refresh token in `.env`.
-
----
-
-## Daily & Weekly Roundups
-
-Penny sends you a morning briefing every day at 9am EST — right in your Telegram chat. It automatically delivers to anyone who's messaged the bot.
-
-**Daily roundup includes:**
-- 📅 Today's calendar events
-- ✅ Open todos
-- 🐦 Latest tweets from people you follow (via X API v2)
-- 📰 News on topics you care about
-- 👤 News mentions of people you track
-
-**Weekly roundup** — Deep-dive news topics, sent on Saturday (configurable)
-
-Add to `.env`:
+Penny sends a morning briefing every day at 9am EST. Add to `.env`:
 
 ```
-# Daily — news topics, Twitter, people to track
 ROUNDUP_DAILY_TOPICS=AI,startups,cybersecurity
-ROUNDUP_TWITTER_HANDLES=elonmusk,naval,paulg
-ROUNDUP_LINKEDIN_NAMES=satya-nadella,reid-hoffman
-
-# Weekly — deep-dive topics (sent on Saturday)
+ROUNDUP_TWITTER_HANDLES=elonmusk,naval
 ROUNDUP_WEEKLY_TOPICS=machine learning,venture capital
 ROUNDUP_WEEKLY_DAY=saturday
-
-# When to send (24h format, EST timezone, default: 9 = 9am EST)
 ROUNDUP_SEND_HOUR=9
-
-# X/Twitter API v2 bearer token (for actual tweets — get from developer.x.com)
-X_BEARER_TOKEN=your-bearer-token
+X_BEARER_TOKEN=your-x-bearer-token
 ```
 
-Calendar and todos are included automatically if you have Google APIs configured (see above). News topics work with no API keys (uses Google News RSS). Twitter uses X API v2 if `X_BEARER_TOKEN` is set, otherwise falls back to RSS/Google News.
+Calendar and todos are included automatically if Google APIs are set up. News works with no API keys.
 
-Roundups can also be sent via email if `ROUNDUP_EMAIL_TO` is configured.
-
-**Test it:** Send `roundup`, `catch me up`, or `give me my briefing` in your bot chat to get an instant preview.
-
----
-
-## AI Restaurant Reservations
-
-Two ways to book:
-
-- **`reserve`** — Generates an OpenTable booking link (no API keys needed)
-- **`call`** — AI calls the restaurant and makes the reservation for you
+### Restaurant Reservations (Phone Calls)
 
 For AI phone calls, add to `.env`:
 
 ```
 BLAND_API_KEY=your-bland-api-key
 RESERVATION_CALLER_NAME=Your Name
+GOOGLE_PLACES_API_KEY=your-places-key
 ```
 
-Get a Bland.ai key at [app.bland.ai](https://app.bland.ai).
+### Learn to Code
 
-**Optional:** Add `GOOGLE_PLACES_API_KEY` so Penny can automatically look up restaurant phone numbers. Otherwise, include the number in your message: `call +13125551234 and reserve a table for 2 at Nobu on Saturday at 7pm`
+Point Penny at a GitHub repo with your lesson plan:
+
+```
+LEARN_REPO=org/learn
+LEARN_PROJECT_REPOS=org/learn-projects
+```
 
 ---
 
-## Architecture
+## Keeping It Running 24/7
 
+### Option A: Google Cloud VM (Recommended)
+
+```bash
+bash deploy-gce.sh .env
+bash setup.sh .env
 ```
-server.js                    # Entry point
-src/
-├── telegram.js              # Telegram message handler + command router
-├── matchers.js              # Natural language intent matchers (zero-latency regex)
-├── config.js                # Environment config
-├── skills.js                # Self-healing skill generator (Voyager/Reflexion)
-├── reservations.js          # Restaurant booking (OpenTable + Bland.ai)
-├── roundup.js               # Daily & weekly digests (schedule, todos, tweets, news)
-├── brain/
-│   └── brain.js             # Persistent memory (local fs + GCS backup)
-├── agent/
-│   ├── sandbox.js           # Sandboxed PR creation pipeline
-│   └── plan.js              # Claude-powered code planner
-├── clients/
-│   ├── telegram.js          # Telegram polling client
-│   ├── anthropic.js         # Claude client
-│   ├── openai.js            # OpenAI client
-│   ├── github.js            # Octokit wrapper
-│   ├── gcp.js               # GCS client
-│   ├── gmail.js             # Gmail client
-│   ├── calendar.js          # Google Calendar client
-│   └── tasks.js             # Google Tasks client
-├── github/
-│   ├── repo.js              # Repo info + README fetching
-│   └── pr.js                # PR summarization
-└── util/
-    ├── proc.js              # Command runner + denylist
-    ├── parse.js             # URL/task parsers
-    └── rateLimit.js         # Per-user rate limiting
+
+### Option B: Docker
+
+```bash
+docker build -t penny:local .
+docker run -d --name penny --restart=always --env-file .env -p 8080:8080 penny:local
 ```
+
+Logs: `docker logs -f penny` · Stop: `docker rm -f penny`
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| Bot doesn't respond | Make sure `node server.js` is running |
+| "Send the passcode" | Send the `TELEGRAM_JOIN_CODE` value |
+| "ANTHROPIC_API_KEY missing" | Add your key to `.env` |
+| "GITHUB_TOKEN missing" | Add a GitHub token (needed for PRs) |
+| PR creation fails | Send `brain last error` to see what happened |
+| Bot is slow | Claude is thinking — complex tasks take 30-60 seconds |
+
+---
+
+## Security
+
+- Dangerous commands are blocked (`rm`, `curl`, `sudo`, `docker`, etc.)
+- Generated code runs in a sandboxed VM with no filesystem or network access
+- Per-user rate limiting (default: 20 requests per 30 seconds)
+- Passcode + user ID allowlist for access control
+- Outgoing emails are humanized so they sound natural
+- API keys never reach generated code or AI prompts
 
 ---
 
@@ -444,7 +328,3 @@ MIT — see [LICENSE](LICENSE).
 ## Credits
 
 See [CREDITS.md](CREDITS.md).
-
----
-
-⚠️ **Penny can write code using AI. Always review pull requests before merging them into your project.**
