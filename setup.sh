@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Apply .env config to OpenClaw GCE container.
+# Apply .env config to Penny GCE container.
 # Usage: bash setup.sh [.env file]
 set -euo pipefail
 
@@ -14,10 +14,10 @@ _val() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- || true
 ZONE="${GCP_ZONE:-$(_val GCP_ZONE)}"
 ZONE="${ZONE:-us-central1-a}"
 INSTANCE="${OPENCLAW_INSTANCE:-$(_val OPENCLAW_INSTANCE)}"
-INSTANCE="${INSTANCE:-openclaw-vm}"
+INSTANCE="${INSTANCE:-penny-vm}"
 PROJECT="${GCP_PROJECT_ID:-$(_val GCP_PROJECT_ID)}"
 
-echo "🐾 OpenClaw Setup"
+echo "🐾 Penny Setup"
 echo "   Instance: $INSTANCE ($ZONE)"
 if [[ -n "$PROJECT" ]]; then
   echo "   Project:  $PROJECT"

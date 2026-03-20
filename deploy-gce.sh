@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy OpenClaw to a GCE VM
+# Deploy Penny to a GCE VM
 # Usage: bash deploy-gce.sh [.env file]
 set -euo pipefail
 
@@ -33,14 +33,14 @@ load_var() {
   echo "$val"
 }
 
-echo "🐾 OpenClaw GCE Deployment"
+echo "🐾 Penny GCE Deployment"
 echo ""
 
 # ── Required GCP settings ─────────────────────────────────────────
 GCP_PROJECT_ID=$(load_var GCP_PROJECT_ID "" "GCP Project ID")
 GCP_REGION=$(load_var GCP_REGION "us-central1" "GCP Region")
 ZONE="${GCP_REGION}-a"
-INSTANCE_NAME=$(load_var OPENCLAW_INSTANCE "openclaw-vm" "VM instance name")
+INSTANCE_NAME=$(load_var OPENCLAW_INSTANCE "penny-vm" "VM instance name")
 MACHINE_TYPE=$(load_var OPENCLAW_MACHINE_TYPE "e2-medium" "Machine type")
 
 echo "   Project:  $GCP_PROJECT_ID"
@@ -57,7 +57,7 @@ fi
 
 # ── Build container image ─────────────────────────────────────────
 TAG=$(git rev-parse --short HEAD 2>/dev/null || echo "latest")
-IMAGE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/openclaw/openclaw:${TAG}"
+IMAGE="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/penny/penny:${TAG}"
 
 echo "📦 Building $IMAGE..."
 gcloud builds submit --tag "$IMAGE" --project="$GCP_PROJECT_ID" .
@@ -70,7 +70,7 @@ if gcloud compute instances describe "$INSTANCE_NAME" --zone="$ZONE" --project="
     --zone="$ZONE" \
     --project="$GCP_PROJECT_ID" \
     --container-image="$IMAGE" \
-    --container-mount-host-path=host-path=/var/openclaw-brain,mount-path=/data/openclaw-brain
+    --container-mount-host-path=host-path=/var/penny-brain,mount-path=/data/penny-brain
 
   echo "✅ Container updated on $INSTANCE_NAME"
 else
@@ -129,7 +129,7 @@ STARTUP
     --tags=http-server
     --address="$STATIC_IP"
     --metadata=google-logging-enabled=true,startup-script="$STARTUP_SCRIPT"
-    --container-mount-host-path=host-path=/var/openclaw-brain,mount-path=/data/openclaw-brain
+    --container-mount-host-path=host-path=/var/penny-brain,mount-path=/data/penny-brain
   )
 
   if [[ -n "$SERVICE_ACCOUNT" ]]; then
