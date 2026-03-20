@@ -70,7 +70,7 @@ if gcloud compute instances describe "$INSTANCE_NAME" --zone="$ZONE" --project="
     --zone="$ZONE" \
     --project="$GCP_PROJECT_ID" \
     --container-image="$IMAGE" \
-    --container-mount-host-path=host-path=/var/penny-brain,mount-path=/data/penny-brain
+    --container-mount-host-path=host-path=/var/openclaw-brain,mount-path=/data/openclaw-brain
 
   echo "✅ Container updated on $INSTANCE_NAME"
 else
@@ -129,7 +129,7 @@ STARTUP
     --tags=http-server
     --address="$STATIC_IP"
     --metadata=google-logging-enabled=true,startup-script="$STARTUP_SCRIPT"
-    --container-mount-host-path=host-path=/var/penny-brain,mount-path=/data/penny-brain
+    --container-mount-host-path=host-path=/var/openclaw-brain,mount-path=/data/openclaw-brain
   )
 
   if [[ -n "$SERVICE_ACCOUNT" ]]; then

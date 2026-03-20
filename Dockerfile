@@ -30,9 +30,9 @@ ENV OPENCLAW_WORKDIR=/tmp/penny-jobs
 RUN mkdir -p /tmp/penny-jobs && chown -R 10001:10001 /tmp/penny-jobs
 
 # Local brain storage (fast reads, backed up to GCS)
-ENV OPENCLAW_BRAIN_DIR=/data/penny-brain
-RUN mkdir -p /data/penny-brain && chown -R 10001:10001 /data/penny-brain
-VOLUME ["/data/penny-brain"]
+ENV OPENCLAW_BRAIN_DIR=/data/openclaw-brain
+RUN mkdir -p /data/openclaw-brain && chown -R 10001:10001 /data/openclaw-brain
+VOLUME ["/data/openclaw-brain"]
 
 USER 10001
 ENV NODE_ENV=production
