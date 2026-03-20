@@ -71,6 +71,11 @@ function createCalendarClient({ clientId, clientSecret, refreshToken }) {
       if (bare[2] === 'am' && h === 12) h = 0;
       return `${String(h).padStart(2, '0')}:00`;
     }
+    // Bare hour number like "14" or "9"
+    const bareNum = s.match(/^(\d{1,2})$/);
+    if (bareNum) {
+      return `${bareNum[1].padStart(2, '0')}:00`;
+    }
     return timeStr; // pass through as-is
   }
 
@@ -89,6 +94,32 @@ function createCalendarClient({ clientId, clientSecret, refreshToken }) {
       now.setDate(now.getDate() + diff);
       return now.toISOString().split('T')[0];
     }
+    // "March 27", "march 27", "March 27 2026", "mar 27"
+    const MONTHS = { jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7, aug: 8, august: 8, sep: 9, september: 9, oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12 };
+    const monthDay = lower.match(/^([a-z]+)\s+(\d{1,2})(?:\s+(\d{4}))?$/);
+    if (monthDay && MONTHS[monthDay[1]]) {
+      const month = String(MONTHS[monthDay[1]]).padStart(2, '0');
+      const day = monthDay[2].padStart(2, '0');
+      let year = monthDay[3] ? parseInt(monthDay[3], 10) : now.getFullYear();
+      if (!monthDay[3]) {
+        const candidate = new Date(`${year}-${month}-${day}T00:00:00`);
+        if (candidate < new Date(now.getFullYear(), now.getMonth(), now.getDate())) year++;
+      }
+      return `${year}-${month}-${day}`;
+    }
+    // "27 March", "27 mar 2026"
+    const dayMonth = lower.match(/^(\d{1,2})\s+([a-z]+)(?:\s+(\d{4}))?$/);
+    if (dayMonth && MONTHS[dayMonth[2]]) {
+      const month = String(MONTHS[dayMonth[2]]).padStart(2, '0');
+      const day = dayMonth[1].padStart(2, '0');
+      let year = dayMonth[3] ? parseInt(dayMonth[3], 10) : now.getFullYear();
+      if (!dayMonth[3]) {
+        const candidate = new Date(`${year}-${month}-${day}T00:00:00`);
+        if (candidate < new Date(now.getFullYear(), now.getMonth(), now.getDate())) year++;
+      }
+      return `${year}-${month}-${day}`;
+    }
+
     // MM/DD/YYYY or MM-DD-YYYY
     const mdyFull = lower.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})$/);
     if (mdyFull) {
@@ -112,7 +143,7 @@ function createCalendarClient({ clientId, clientSecret, refreshToken }) {
     const end = ev.end?.dateTime || ev.end?.date || '?';
     const attendees = (ev.attendees || []).map(a => a.email).join(', ');
     return [
-      `${ev.summary || '(no title)'} [${ev.id}]`,
+      `${ev.summary || '(no title)'}`,
       `  When: ${start} → ${end}`,
       ev.location ? `  Where: ${ev.location}` : null,
       attendees ? `  Who: ${attendees}` : null,
@@ -130,25 +161,43 @@ function createCalendarClient({ clientId, clientSecret, refreshToken }) {
       timeMax = end.toISOString();
     }
 
-    const res = await calendar.events.list({
-      calendarId: 'primary',
-      timeMin,
-      timeMax,
-      maxResults,
-      singleEvents: true,
-      orderBy: 'startTime',
-    });
+    // Fetch all calendars and query events from each
+    const calList = await calendar.calendarList.list();
+    const allCals = (calList.data.items || []).filter(c => c.accessRole === 'owner' || c.accessRole === 'writer' || c.accessRole === 'reader');
 
-    return (res.data.items || []).map(ev => ({
-      id: ev.id,
-      summary: ev.summary || '(no title)',
-      start: ev.start?.dateTime || ev.start?.date || '',
-      end: ev.end?.dateTime || ev.end?.date || '',
-      location: ev.location || '',
-      attendees: (ev.attendees || []).map(a => a.email),
-      description: ev.description || '',
-      formatted: formatEvent(ev),
-    }));
+    const allEvents = [];
+    for (const cal of allCals) {
+      try {
+        const res = await calendar.events.list({
+          calendarId: cal.id,
+          timeMin,
+          timeMax,
+          maxResults,
+          singleEvents: true,
+          orderBy: 'startTime',
+        });
+        for (const ev of (res.data.items || [])) {
+          allEvents.push({
+            id: ev.id,
+            calendarId: cal.id,
+            calendarName: cal.summary || '',
+            summary: ev.summary || '(no title)',
+            start: ev.start?.dateTime || ev.start?.date || '',
+            end: ev.end?.dateTime || ev.end?.date || '',
+            location: ev.location || '',
+            attendees: (ev.attendees || []).map(a => a.email),
+            description: ev.description || '',
+            formatted: formatEvent(ev),
+          });
+        }
+      } catch (err) {
+        // Skip calendars we can't read (e.g. permissions issues)
+      }
+    }
+
+    // Sort all events by start time
+    allEvents.sort((a, b) => new Date(a.start) - new Date(b.start));
+    return allEvents;
   }
 
   async function getEvent(eventId) {
@@ -170,12 +219,26 @@ function createCalendarClient({ clientId, clientSecret, refreshToken }) {
     };
   }
 
-  async function createEvent({ summary, description, date, time, duration, attendees, location }) {
+  async function listCalendars() {
+    const res = await calendar.calendarList.list();
+    return (res.data.items || []).map(c => ({
+      id: c.id,
+      summary: c.summary || '(untitled)',
+      description: c.description || '',
+      primary: !!c.primary,
+      accessRole: c.accessRole || '',
+    }));
+  }
+
+  async function createEvent({ summary, description, date, time, duration, attendees, location, calendarId }) {
     const dateStr = resolveDate(date);
     const minutes = parseDuration(duration || '1h');
     const normalizedTime = parseTime(time);
 
     const startDt = new Date(`${dateStr}T${normalizedTime}:00`);
+    if (isNaN(startDt.getTime())) {
+      throw new Error(`Invalid date/time: "${date}" "${time}" resolved to "${dateStr}T${normalizedTime}:00"`);
+    }
     const endDt = new Date(startDt.getTime() + minutes * 60 * 1000);
 
     const event = {
@@ -192,7 +255,7 @@ function createCalendarClient({ clientId, clientSecret, refreshToken }) {
     }
 
     const res = await calendar.events.insert({
-      calendarId: 'primary',
+      calendarId: calendarId || 'primary',
       requestBody: event,
       sendUpdates: attendees?.length ? 'all' : 'none',
     });
@@ -279,7 +342,7 @@ function createCalendarClient({ clientId, clientSecret, refreshToken }) {
     });
   }
 
-  return { listEvents, getEvent, createEvent, updateEvent, deleteEvent, resolveDate, parseDuration, parseTime, extractDuration, enabled: true };
+  return { listEvents, listCalendars, getEvent, createEvent, updateEvent, deleteEvent, resolveDate, parseDuration, parseTime, extractDuration, enabled: true };
 }
 
 module.exports = { createCalendarClient };

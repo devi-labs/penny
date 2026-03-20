@@ -143,8 +143,9 @@ async function checkCallStatus(blandApiKey, callId) {
   };
 }
 
-async function waitForCallCompletion(blandApiKey, callId, { maxWait = 300_000, pollInterval = 10_000 } = {}) {
+async function waitForCallCompletion(blandApiKey, callId, { maxWait = 300_000, pollInterval = 10_000, onProgress } = {}) {
   const start = Date.now();
+  let checks = 0;
 
   while (Date.now() - start < maxWait) {
     const result = await checkCallStatus(blandApiKey, callId);
@@ -154,6 +155,13 @@ async function waitForCallCompletion(blandApiKey, callId, { maxWait = 300_000, p
     }
     if (result.status === 'error' || result.status === 'failed' || result.status === 'no-answer') {
       return result;
+    }
+
+    checks++;
+    // Send progress update every 30 seconds (every 3rd check at 10s intervals)
+    if (onProgress && checks % 3 === 0) {
+      const elapsed = Math.round((Date.now() - start) / 1000);
+      onProgress(`📞 Still on the line... (${elapsed}s)`);
     }
 
     await new Promise(r => setTimeout(r, pollInterval));

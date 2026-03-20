@@ -19,6 +19,8 @@ const {
 } = require('./reservations');
 const { runSkillPipeline } = require('./skills');
 const { sendDailyRoundup, sendWeeklyRoundup } = require('./roundup');
+const { handleLearnCommand, handleChallengeResponse, learnHelpText } = require('./learn');
+const { matchIntent, extractDueDate } = require('./matchers');
 
 function ts() {
   return new Date().toISOString().replace('T', ' ').replace('Z', '');
@@ -80,53 +82,133 @@ async function humanize(anthropic, model, text) {
 
 function helpText() {
   return [
-    '🤖 OpenClaw — here\'s everything I can do:',
+    '👋 Here\'s what I can help you with:',
     '',
-    '📋 Tasks',
-    '  todo list',
-    '  todo add <task>',
-    '  todo done <#>',
-    '  todo delete <#>',
+    '📋 To-Do List — "what\'s on my plate?" or "remind me to..."',
+    '📅 Calendar — "what\'s on my schedule?" or "any meetings tomorrow?"',
+    '📧 Email — "check my email" or "send an email to..."',
+    '🎓 Learn — "learn" to start coding lessons',
+    '📰 Roundup — "catch me up" for your daily briefing',
+    '🍽️ Reservations — "book a table for 2 at Nobu Saturday 7pm"',
+    '💻 GitHub — create tasks and PRs from chat',
     '',
-    '📧 Email',
-    '  email check',
-    '  email search <query>',
-    '  email read <id>',
-    '  email send user@example.com "Subject" Body text',
+    'Just talk to me naturally! I understand most things.',
     '',
-    '📅 Calendar',
-    '  cal',
-    '  cal list <date>',
+    'Type "todo help", "cal help", "email help", "learn help",',
+    '"roundup help", "reserve help", or "github help" for details.',
+    '',
+    'Having issues? Type "support" and I\'ll get help for you.',
+  ].join('\n');
+}
+
+function todoHelpText() {
+  return [
+    '📋 To-Do List Commands:',
+    '',
+    '  todo list — show tasks from your default list',
+    '  todo list <name or #> — show tasks from a specific list',
+    '  todo all — show all your task lists',
+    '  todo add <task> — add to default list',
+    '  todo add <task> list <name> — add to a specific list',
+    '  todo add <task> by <date> — add with a due date',
+    '  todo done <#> — mark a task as done',
+    '  todo delete <#> — remove a task',
+    '',
+    'Or just say things like:',
+    '  "remind me to call Bob"',
+    '  "what\'s on my plate?"',
+    '  "mark 3 as done"',
+    '  "add buy groceries to my list by Friday"',
+  ].join('\n');
+}
+
+function calHelpText() {
+  return [
+    '📅 Calendar Commands:',
+    '',
+    '  cal — today\'s events',
+    '  cal list tomorrow — events for a specific day',
+    '  cal list week — this week\'s events',
+    '  cal calendars — see all your calendars',
+    '  cal default <#> — set your default calendar',
     '  cal create "Title" <date> <time> <duration>',
-    '  cal update <id> field=value',
-    '  cal delete <id>',
+    '  cal update <#> title="New Title" time=3pm',
+    '  cal delete <#>',
     '',
-    '🍽️ Reservations',
-    '  reserve table for 2 at Nobu on Saturday at 7pm',
-    '  call Nobu and reserve a table for 2 on Saturday at 7pm',
+    'Or just say things like:',
+    '  "what\'s on my schedule today?"',
+    '  "any meetings tomorrow?"',
+    '  "schedule a meeting for Friday at 2pm"',
+    '  "am I free on Monday?"',
+  ].join('\n');
+}
+
+function emailHelpText() {
+  return [
+    '📧 Email Commands:',
     '',
-    '📰 Roundup',
+    '  email check — show recent emails',
+    '  email search <query> — search your inbox',
+    '  email read <id> — read a full email',
+    '  email send user@email.com "Subject" Body text',
+    '',
+    'Or just say things like:',
+    '  "any new emails?"',
+    '  "find emails from Sarah"',
+    '  "send an email to bob@example.com about the meeting"',
+    '',
+    'Emails are previewed before sending — reply "send" to confirm.',
+  ].join('\n');
+}
+
+function roundupHelpText() {
+  return [
+    '📰 Roundup Commands:',
+    '',
     '  roundup — get your daily briefing now',
     '  roundup weekly — get the weekly digest',
+    '  roundup topics — see your topics & Twitter handles',
+    '  roundup add <topic> — add a news topic',
+    '  roundup remove <topic> — remove a topic',
+    '  roundup follow <handle> — follow a Twitter account',
+    '  roundup unfollow <handle> — unfollow',
     '',
-    '🧠 Skills',
-    '  skills list',
-    '  skills delete <name>',
-    '  (or just ask me anything — I learn on the fly!)',
+    'Or just say: "catch me up", "what\'s the news", "give me my briefing"',
     '',
-    '💻 GitHub',
-    '  repos',
-    '  tell me about owner/repo',
-    '  summarize https://github.com/.../pull/123',
+    'Your daily roundup includes calendar, todos, tweets, and news.',
+    'It\'s sent automatically every morning via Telegram.',
+  ].join('\n');
+}
+
+function reserveHelpText() {
+  return [
+    '🍽️ Reservation Commands:',
+    '',
+    'Just tell me what you need:',
+    '  "book a table for 2 at Nobu on Saturday at 7pm"',
+    '  "make a reservation at The French Laundry for 4"',
+    '  "dinner for 6 at Carbone tomorrow"',
+    '',
+    'I\'ll get you an OpenTable booking link.',
+    '',
+    'Want me to call the restaurant instead?',
+    '  "call Nobu and reserve a table for 2 on Saturday at 7pm"',
+  ].join('\n');
+}
+
+function githubHelpText() {
+  return [
+    '💻 GitHub Commands:',
+    '',
+    '  repos — list your indexed repos',
+    '  tell me about owner/repo — get a repo summary',
+    '  summarize <PR URL> — summarize a pull request',
+    '',
+    'To create a PR, send:',
     '  repo: owner/repo',
     '  task: describe what you want built',
     '',
-    '🧠 Brain',
-    '  brain status',
-    '  brain last error',
-    '  brain reset',
-    '',
-    '💥 self destruct — shut down the VM',
+    'I\'ll clone the repo, write the code, and open a PR for you.',
   ].join('\n');
 }
 
@@ -146,9 +228,17 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
   const allowedUserIds = config.telegram.allowedUserIds
     .split(',').map(s => s.trim()).filter(Boolean);
 
-  async function sendReply(chatId, text) {
+  async function sendReply(chatId, text, { saveToHistory = true } = {}) {
     try {
       await tg.sendMessage(chatId, text);
+      // Save bot response to message history for support/debug
+      if (saveToHistory && brain && chatId) {
+        const tk = brain.threadKeyFromTelegram(chatId);
+        const state = (await brain.loadThread(tk)) || {};
+        const msgs = Array.isArray(state.messages) ? state.messages : [];
+        msgs.push({ role: 'assistant', content: text.slice(0, 1000), at: new Date().toISOString() });
+        await brain.saveThread(tk, { messages: msgs.slice(-20) });
+      }
     } catch (err) {
       logError(`Telegram send error: ${err.message || err}`);
     }
@@ -196,6 +286,30 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
     // Track this chat for roundup delivery
     await brain.saveActiveChat(chatId);
 
+    // Save every user message for support/debug history
+    const existingState = threadState || {};
+    const msgHistory = Array.isArray(existingState.messages) ? existingState.messages : [];
+    msgHistory.push({ role: 'user', content: messageBody, at: new Date().toISOString() });
+    await brain.saveThread(threadKey, { messages: msgHistory.slice(-20) });
+
+    // ── Pending email confirmation ───────────────────────────────
+    if (threadState?.pendingEmail && (lower === 'send' || lower === 'yes' || lower === 'confirm')) {
+      const { to, subject, body } = threadState.pendingEmail;
+      try {
+        await gmail.sendEmail({ to, subject, body });
+        await brain.saveThread(threadKey, { pendingEmail: null });
+        await sendReply(chatId, `✅ Email sent to ${to}`);
+      } catch (err) {
+        await sendReply(chatId, `❌ Email send failed: ${(err?.message || 'unknown').slice(0, 200)}`);
+      }
+      return;
+    }
+    if (threadState?.pendingEmail && (lower === 'cancel' || lower === 'no' || lower === 'discard' || lower === 'nevermind')) {
+      await brain.saveThread(threadKey, { pendingEmail: null });
+      await sendReply(chatId, '✅ Email discarded.');
+      return;
+    }
+
     // Strip /start command (Telegram sends this on first interaction)
     if (lower === '/start') {
       await sendReply(chatId, helpText());
@@ -218,9 +332,101 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
         return;
       }
 
-      // Help
-      if (lower === 'help' || lower === '/help' || lower.includes('what can you do')) {
+      // Help — main and drill-down
+      if (lower === 'help' || lower === '/help' || lower === '/start') {
         await sendReply(chatId, helpText());
+        return;
+      }
+      if (lower === 'todo help' || lower === 'task help' || lower === 'tasks help') {
+        await sendReply(chatId, todoHelpText());
+        return;
+      }
+      if (lower === 'cal help' || lower === 'calendar help') {
+        await sendReply(chatId, calHelpText());
+        return;
+      }
+      if (lower === 'email help' || lower === 'mail help') {
+        await sendReply(chatId, emailHelpText());
+        return;
+      }
+      if (lower === 'roundup help' || lower === 'news help') {
+        await sendReply(chatId, roundupHelpText());
+        return;
+      }
+      if (lower === 'reserve help' || lower === 'reservation help' || lower === 'restaurant help') {
+        await sendReply(chatId, reserveHelpText());
+        return;
+      }
+      if (lower === 'github help' || lower === 'repo help' || lower === 'pr help') {
+        await sendReply(chatId, githubHelpText());
+        return;
+      }
+      if (lower === 'learn help' || lower === 'coding help' || lower === 'lesson help') {
+        await sendReply(chatId, learnHelpText());
+        return;
+      }
+
+      // ── Admin support ──────────────────────────────────────────────
+      // User types the support keyword → sends last 10 messages to admin
+      if (config.telegram.adminUserId && lower === config.telegram.supportKeyword.toLowerCase()) {
+        const adminChatId = config.telegram.adminUserId;
+        const state = await brain.loadThread(threadKey);
+        const history = state?.messages || [];
+        const last10 = history.slice(-10);
+
+        if (!last10.length) {
+          await sendReply(chatId, '📩 Support request sent! Someone will check in with you.');
+          try {
+            await tg.sendMessage(adminChatId,
+              `🆘 Support request from user ${userId} (chat ${chatId})\n\nNo message history available.`
+            );
+          } catch (err) {
+            console.error('[support] Failed to send to admin:', err?.message || err);
+          }
+          return;
+        }
+
+        const transcript = last10.map(m => {
+          const who = m.role === 'user' ? '👤 User' : '🤖 Bot';
+          const text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+          return `${who}: ${text.slice(0, 500)}`;
+        }).join('\n\n');
+
+        try {
+          await tg.sendMessage(adminChatId,
+            `🆘 Support request from user ${userId} (chat ${chatId})\n\n📝 Last ${last10.length} messages:\n\n${transcript.slice(0, 3500)}`
+          );
+          await sendReply(chatId, '📩 Support request sent! Someone will check in with you shortly.');
+        } catch (err) {
+          console.error('[support] Failed to send to admin:', err?.message || err);
+          await sendReply(chatId, '📩 Support request noted. We\'ll look into it.');
+        }
+        return;
+      }
+
+      // ── Admin broadcast ───────────────────────────────────────────
+      // Admin types "broadcast <message>" → sends to all active chats
+      if (lower.startsWith('broadcast ') && config.telegram.adminUserId && String(userId) === String(config.telegram.adminUserId)) {
+        const message = messageBody.replace(/^broadcast\s+/i, '').trim();
+        if (!message) {
+          await sendReply(chatId, 'Usage: broadcast <message>');
+          return;
+        }
+        const chatIds = await brain.loadActiveChats();
+        let sent = 0;
+        for (const cid of chatIds) {
+          try {
+            await tg.sendMessage(cid, `📢 ${message}`);
+            sent++;
+          } catch (err) {
+            console.error(`[broadcast] Failed to send to ${cid}:`, err?.message || err);
+          }
+        }
+        await sendReply(chatId, `✅ Broadcast sent to ${sent}/${chatIds.length} chat(s).`, { saveToHistory: false });
+        return;
+      }
+      if (lower.startsWith('broadcast ') && (!config.telegram.adminUserId || String(userId) !== String(config.telegram.adminUserId))) {
+        // Non-admin trying to broadcast — ignore silently
         return;
       }
 
@@ -264,6 +470,317 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
         });
         await sendReply(chatId, '✅ Brain reset.');
         return;
+      }
+
+      // ── Natural language matchers ──────────────────────────────────
+      // Catches common phrasings before falling through to rigid commands.
+      const matched = matchIntent(lower);
+      if (matched) {
+        // Help
+        if (matched.intent === 'help') {
+          await sendReply(chatId, helpText());
+          return;
+        }
+
+        // Brain
+        if (matched.intent === 'brain_status') {
+          await sendReply(chatId, `🧠 Brain: ${brain ? 'active' : 'disabled'}\nBucket: ${config.gcp.brainBucket || '(none)'}\nPrefix: ${config.gcp.brainPrefix}`);
+          return;
+        }
+        if (matched.intent === 'brain_show') {
+          const state = await brain.loadThread(threadKey);
+          await sendReply(chatId, `🧠 Thread memory:\n\`\`\`\n${JSON.stringify(state || {}, null, 2).slice(0, 3000)}\n\`\`\``);
+          return;
+        }
+        if (matched.intent === 'brain_reset') {
+          await brain.saveThread(threadKey, {
+            clearedAt: new Date().toISOString(),
+            lastRepo: null, lastTask: null, lastPrUrl: null,
+            lastBranch: null, lastPlan: null, lastError: null,
+            lastErrorAt: null, lastErrorJobId: null,
+            lastErrorContext: null, lastErrorLogs: null,
+            lastClaudeRawSnippet: null,
+          });
+          await sendReply(chatId, '✅ Brain reset.');
+          return;
+        }
+
+        // Repos
+        if (matched.intent === 'repos_list') {
+          const repoList = await brain.listRepos();
+          if (!repoList.length) {
+            await sendReply(chatId, 'No repos indexed yet. Set OPENCLAW_REPOS or wait for auto-discovery.');
+            return;
+          }
+          const list = repoList.map(r => `• ${r.name} (${r.language || '?'})`).join('\n');
+          await sendReply(chatId, `📦 Indexed repos:\n${list}`);
+          return;
+        }
+
+        // Learn to Code
+        if (matched.intent === 'learn') {
+          const userName = message.from.first_name || message.from.username || String(message.from.id);
+          await handleLearnCommand({
+            command: 'learn',
+            args: matched.args,
+            userId,
+            userName,
+            threadKey,
+            threadState,
+            brain,
+            octokit,
+            anthropic,
+            model: config.anthropic.model,
+            config,
+            sendReply: (text) => sendReply(chatId, text),
+            sendAdminAlert: config.telegram.adminUserId
+              ? (text) => tg.sendMessage(config.telegram.adminUserId, text).catch(e => console.error('[learn] Admin alert failed:', e?.message || e))
+              : null,
+          });
+          return;
+        }
+
+        // Roundup
+        if (matched.intent === 'roundup_daily') {
+          const deps = { config, anthropic, gmail, calendar, tasks, brain };
+          await sendReply(chatId, '📰 Sending daily roundup...');
+          try {
+            await sendDailyRoundup(deps);
+            await sendReply(chatId, '✅ Daily roundup sent!');
+          } catch (err) {
+            await sendReply(chatId, `❌ Daily roundup failed: ${(err?.message || 'unknown').slice(0, 300)}`);
+          }
+          return;
+        }
+        if (matched.intent === 'roundup_weekly') {
+          const deps = { config, anthropic, gmail, calendar, tasks, brain };
+          await sendReply(chatId, '📰 Sending weekly roundup...');
+          try {
+            await sendWeeklyRoundup(deps);
+            await sendReply(chatId, '✅ Weekly roundup sent!');
+          } catch (err) {
+            await sendReply(chatId, `❌ Weekly roundup failed: ${(err?.message || 'unknown').slice(0, 300)}`);
+          }
+          return;
+        }
+
+        // Email
+        if (matched.intent === 'email_check' && gmail) {
+          const msgs = await gmail.listMessages({ maxResults: 5 });
+          if (!msgs.length) { await sendReply(chatId, '📭 No recent emails.'); return; }
+          const lines = msgs.map((m, i) => `${i + 1}. ${m.from.slice(0, 40)}\n   ${m.subject}\n   ${m.date}`);
+          await sendReply(chatId, `📬 Recent emails:\n\n${lines.join('\n\n')}`);
+          return;
+        }
+        if (matched.intent === 'email_search_nl' && gmail && anthropic) {
+          // Use Claude to extract the search query from the natural language
+          const queryResp = await anthropic.messages.create({
+            model: config.anthropic.model,
+            max_tokens: 100,
+            system: 'Extract a Gmail search query from the user message. Return ONLY the search string, nothing else.',
+            messages: [{ role: 'user', content: matched.raw }],
+          });
+          const query = queryResp.content?.find(c => c.type === 'text')?.text?.trim() || '';
+          if (query) {
+            const msgs = await gmail.listMessages({ query, maxResults: 5 });
+            if (!msgs.length) { await sendReply(chatId, `No emails found for: ${query}`); return; }
+            const lines = msgs.map((m, i) => `${i + 1}. ${m.from.slice(0, 40)}\n   ${m.subject}`);
+            await sendReply(chatId, `📬 Results for "${query}":\n\n${lines.join('\n\n')}`);
+          } else {
+            await sendReply(chatId, 'I couldn\'t figure out what to search for. Try: email search <query>');
+          }
+          return;
+        }
+        if (matched.intent === 'email_send_nl' && gmail && anthropic) {
+          // Let the intent router handle the complex extraction — pass through to existing flow
+          // by not returning here, it'll fall through to the intent router
+        }
+
+        // Calendar
+        if (matched.intent === 'cal_calendars' && calendar) {
+          const cals = await calendar.listCalendars();
+          if (!cals.length) { await sendReply(chatId, '📅 No calendars found.'); return; }
+          const calendarIdMap = {};
+          const lines = cals.map((c, i) => {
+            const num = i + 1;
+            calendarIdMap[num] = c.id;
+            const badge = c.primary ? ' (primary)' : '';
+            const role = c.accessRole ? ` [${c.accessRole}]` : '';
+            return `${num}. ${c.summary}${badge}${role}`;
+          });
+          await brain.saveThread(threadKey, { calendarIdMap });
+          await sendReply(chatId, `📅 Your calendars:\n\n${lines.join('\n')}\n\nUse the number when creating events, e.g.: cal create 2 "Meeting" tomorrow 3pm 1h`);
+          return;
+        }
+        if (matched.intent === 'cal_list' && calendar) {
+          let events;
+          if (matched.date && matched.date !== 'today') {
+            if (matched.date === 'this week' || matched.date === 'next week') {
+              const now = new Date();
+              const offset = matched.date === 'next week' ? 7 : 0;
+              const timeMin = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset).toISOString();
+              const timeMax = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset + 7).toISOString();
+              events = await calendar.listEvents({ timeMin, timeMax });
+            } else {
+              const dateStr = calendar.resolveDate(matched.date);
+              const timeMin = new Date(`${dateStr}T00:00:00`).toISOString();
+              const timeMax = new Date(`${dateStr}T23:59:59`).toISOString();
+              events = await calendar.listEvents({ timeMin, timeMax });
+            }
+          } else {
+            events = await calendar.listEvents();
+          }
+          if (!events.length) {
+            await sendReply(chatId, `📅 No events ${matched.date ? `for ${matched.date}` : 'today'}.`);
+            return;
+          }
+          await sendReply(chatId, `📅 Events${matched.date ? ` (${matched.date})` : ' today'}:\n\n${events.map(e => e.formatted).join('\n\n')}`);
+          return;
+        }
+        if (matched.intent === 'cal_create_nl' && calendar && anthropic) {
+          // Use Claude to extract event details from natural language
+          const today = new Date().toISOString().slice(0, 10);
+          const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+          const parseResp = await anthropic.messages.create({
+            model: config.anthropic.model,
+            max_tokens: 300,
+            system:
+              `Extract calendar event details from the user message. Today is ${dayOfWeek}, ${today}. ` +
+              'Return ONLY valid JSON: {"title":"string","date":"YYYY-MM-DD","time":"HH:MM" (24h),"duration":"1h","location":"string or null","attendees":"comma-sep emails or null"}. ' +
+              'Resolve relative dates. If a field is missing, set to null.',
+            messages: [{ role: 'user', content: matched.raw }],
+          });
+          let raw = parseResp.content?.find(c => c.type === 'text')?.text?.trim() || '';
+          raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+          try {
+            const ev = JSON.parse(raw);
+            if (!ev.title || !ev.date || !ev.time) {
+              await sendReply(chatId, `I got "${ev.title || '?'}" but need a date and time. Try:\ncal create "Title" <date> <time> <duration>`);
+              return;
+            }
+            const attendees = ev.attendees ? ev.attendees.split(',').map(s => s.trim()).filter(Boolean) : [];
+            const result = await calendar.createEvent({
+              summary: ev.title, date: ev.date, time: ev.time,
+              duration: ev.duration || '1h', attendees, location: ev.location || '',
+            });
+            await sendReply(chatId, `✅ Event created: ${result.summary}\n${result.htmlLink || ''}`);
+          } catch (err) {
+            await sendReply(chatId, 'I couldn\'t parse those event details. Try:\ncal create "Title" <date> <time> <duration>');
+          }
+          return;
+        }
+
+        // Todos
+        if (matched.intent === 'todo_list' && tasks?.enabled) {
+          const items = await tasks.listTasks();
+          if (!items.length) { await sendReply(chatId, '✅ No todos! You\'re all caught up.'); return; }
+          const todoIdMap = {};
+          items.forEach((t, i) => { todoIdMap[i + 1] = { id: t.id, tasklist: null }; });
+          await brain.saveThread(threadKey, { todoIdMap });
+          const lines = items.map((t, i) =>
+            `${i + 1}. ${t.title}${t.due ? ` (due ${t.due.slice(0, 10)})` : ''}${t.notes ? `\n   ${t.notes.slice(0, 100)}` : ''}`
+          );
+          await sendReply(chatId, `📋 Todos:\n\n${lines.join('\n\n')}`);
+          return;
+        }
+        if (matched.intent === 'todo_add' && tasks?.enabled && matched.title) {
+          const due = matched.due && calendar ? calendar.resolveDate(matched.due) : matched.due || undefined;
+          const result = await tasks.addTask({ title: matched.title, due });
+          await sendReply(chatId, `✅ Added: ${result.title}${due ? ` (due ${due})` : ''}`);
+          return;
+        }
+        if (matched.intent === 'todo_done' && tasks?.enabled && matched.index) {
+          const num = parseInt(matched.index, 10);
+          let taskId = matched.index;
+          let tasklist = null;
+          if (!isNaN(num) && num >= 1) {
+            const state = await brain.loadThread(threadKey);
+            if (state?.todoIdMap?.[num]) { taskId = state.todoIdMap[num].id; tasklist = state.todoIdMap[num].tasklist; }
+          }
+          const result = await tasks.completeTask(taskId, tasklist);
+          await sendReply(chatId, `✅ Completed: ${result.title}`);
+          return;
+        }
+        if (matched.intent === 'todo_delete' && tasks?.enabled && matched.index) {
+          const num = parseInt(matched.index, 10);
+          let taskId = matched.index;
+          let tasklist = null;
+          if (!isNaN(num) && num >= 1) {
+            const state = await brain.loadThread(threadKey);
+            if (state?.todoIdMap?.[num]) { taskId = state.todoIdMap[num].id; tasklist = state.todoIdMap[num].tasklist; }
+          }
+          await tasks.deleteTask(taskId, tasklist);
+          await sendReply(chatId, '✅ Todo deleted.');
+          return;
+        }
+
+        // Reservations
+        if (matched.intent === 'reserve_nl' && anthropic) {
+          await sendReply(chatId, '🍽️ Finding that restaurant...');
+          const details = await parseReservationRequest(anthropic, config.anthropic.model, messageBody);
+          if (!details || !details.restaurant) {
+            await sendReply(chatId, 'I couldn\'t parse that. Try:\nreserve table for 2 at Nobu in Chicago on Saturday at 7pm');
+            return;
+          }
+          if (!details.date || !details.time) {
+            await sendReply(chatId, `I found "${details.restaurant}" but need a date and time. Try:\nreserve ${details.restaurant} for ${details.partySize || 2} on Saturday at 7pm`);
+            return;
+          }
+          const openTableUrl = buildOpenTableUrl(details);
+          const mapsUrl = buildGoogleMapsUrl(details);
+          await sendReply(chatId, formatReservationReply(details, openTableUrl, mapsUrl));
+          return;
+        }
+        if (matched.intent === 'reserve_call_nl' && anthropic) {
+          const rc = config.reservations;
+          if (!rc.blandApiKey) {
+            await sendReply(chatId, 'Phone calls not configured (BLAND_API_KEY missing). Try "reserve" instead for an OpenTable link.');
+            return;
+          }
+          await sendReply(chatId, '🍽️ Parsing your request...');
+          const details = await parseReservationRequest(anthropic, config.anthropic.model, messageBody);
+          if (!details || !details.restaurant) {
+            await sendReply(chatId, 'I couldn\'t parse that. Try:\ncall Nobu Chicago and reserve a table for 2 on Saturday at 7pm');
+            return;
+          }
+          if (!details.date || !details.time) {
+            await sendReply(chatId, `I found "${details.restaurant}" but need a date and time. Try:\ncall ${details.restaurant} and reserve for ${details.partySize || 2} on Saturday at 7pm`);
+            return;
+          }
+          let phone = details.phone;
+          if (!phone && rc.placesApiKey) {
+            await sendReply(chatId, `📞 Looking up ${details.restaurant}...`);
+            const place = await lookupRestaurantPhone(rc.placesApiKey, details.restaurant, details.city);
+            if (place?.phone) {
+              phone = place.phone;
+              await sendReply(chatId, `Found: ${place.name}\n${place.address}\n📞 ${place.phone}`);
+            }
+          }
+          if (!phone) {
+            await sendReply(chatId, `I couldn't find a phone number for ${details.restaurant}. Please include it:\ncall +1234567890 and reserve a table for 2 at ${details.restaurant} on ${details.date} at ${details.time}`);
+            return;
+          }
+          details.phone = phone;
+          await sendReply(chatId, `📞 Calling ${details.restaurant} at ${phone}...\nThis may take a minute or two.`);
+          try {
+            const callId = await makeReservationCall(rc.blandApiKey, { phone, restaurant: details.restaurant, date: details.date, time: details.time, partySize: details.partySize, callerName: rc.callerName });
+            await sendReply(chatId, '📞 Call in progress...');
+            const result = await waitForCallCompletion(rc.blandApiKey, callId, { onProgress: msg => sendReply(chatId, msg) });
+            await sendReply(chatId, formatCallResult(details, result));
+          } catch (err) {
+            await sendReply(chatId, `❌ Call failed: ${(err?.message || 'unknown error').slice(0, 200)}`);
+          }
+          return;
+        }
+
+        // If we matched but the required service isn't configured, let user know
+        if ((matched.intent.startsWith('email') && !gmail) ||
+            (matched.intent.startsWith('todo') && !tasks?.enabled) ||
+            (matched.intent.startsWith('cal') && !calendar)) {
+          const service = matched.intent.startsWith('email') ? 'Gmail' : matched.intent.startsWith('todo') ? 'Google Tasks' : 'Google Calendar';
+          await sendReply(chatId, `${service} is not configured. Check your .env file for the required credentials.`);
+          return;
+        }
       }
 
       // List indexed repos
@@ -483,8 +1000,11 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
           if (anthropic) {
             body = await humanize(anthropic, config.anthropic.model, body);
           }
-          await gmail.sendEmail({ to: sendMatch[1], subject: sendMatch[2], body });
-          await sendReply(chatId, `✅ Email sent to ${sendMatch[1]}`);
+          // Save pending email for confirmation
+          await brain.saveThread(threadKey, {
+            pendingEmail: { to: sendMatch[1], subject: sendMatch[2], body },
+          });
+          await sendReply(chatId, `📧 Preview:\n\nTo: ${sendMatch[1]}\nSubject: ${sendMatch[2]}\n\n${body.slice(0, 1000)}\n\n✉️ Reply "send" to confirm or "cancel" to discard.`);
           return;
         }
 
@@ -555,7 +1075,7 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
         return;
       }
 
-      if (lower.startsWith('reserve') || lower.startsWith('book') || lower.startsWith('reservation')) {
+      if (lower.startsWith('reserve') || lower.startsWith('book') || lower.startsWith('reservation') || lower.startsWith('make a reservation') || lower.startsWith('get a table') || lower.startsWith('find a table')) {
         if (!anthropic) {
           await sendReply(chatId, 'Claude not configured (ANTHROPIC_API_KEY missing).');
           return;
@@ -587,64 +1107,165 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
         const todoCmdRaw = messageBody.replace(/^todo\s*/i, '').trim();
 
         // Resolve a user-provided ID: if it's a small number, look up the real
-        // Google Task ID from the last listed items saved in thread state.
+        // Google Task ID + tasklist from the last listed items saved in thread state.
         async function resolveTodoId(input) {
           const num = parseInt(input, 10);
           if (!isNaN(num) && String(num) === input && num >= 1) {
             const state = await brain.loadThread(threadKey);
             const map = state?.todoIdMap;
-            if (map && map[num]) return map[num];
+            if (map && map[num]) return map[num]; // { id, tasklist }
           }
-          return input; // fall back to raw ID
+          return { id: input, tasklist: null }; // fall back to raw ID
         }
 
-        if (todoCmd === '' || todoCmd === 'list' || todoCmd === 'show') {
-          const items = await tasks.listTasks();
+        // Resolve a list name to a tasklist ID using the saved mapping
+        async function resolveListName(name) {
+          if (!name) return null;
+          const state = await brain.loadThread(threadKey);
+          const map = state?.taskListMap;
+          if (map) {
+            // Try exact match first, then case-insensitive
+            for (const [key, val] of Object.entries(map)) {
+              if (val.title.toLowerCase() === name.toLowerCase()) return val.id;
+            }
+            // Try by number
+            const num = parseInt(name, 10);
+            if (!isNaN(num) && map[num]) return map[num].id;
+          }
+          return null;
+        }
+
+        // Show all task lists with counts
+        if (todoCmd === 'all' || todoCmd === 'lists') {
+          const lists = await tasks.listTaskLists();
+          if (!lists.length) {
+            await sendReply(chatId, '📋 No task lists found.');
+            return;
+          }
+          const taskListMap = {};
+          const lines = [];
+          for (let i = 0; i < lists.length; i++) {
+            const tl = lists[i];
+            taskListMap[i + 1] = { id: tl.id, title: tl.title };
+            try {
+              const items = await tasks.listTasks({ tasklist: tl.id, maxResults: 100 });
+              lines.push(`${i + 1}. ${tl.title} (${items.length} task${items.length === 1 ? '' : 's'})`);
+            } catch {
+              lines.push(`${i + 1}. ${tl.title} (unable to read)`);
+            }
+          }
+          await brain.saveThread(threadKey, { taskListMap });
+          await sendReply(chatId, `📋 Your task lists:\n\n${lines.join('\n')}\n\nUse "todo list <#>" to see tasks in a list.\nUse "todo add <task> list <name>" to add to a specific list.`);
+          return;
+        }
+
+        // List tasks — optionally from a specific list
+        if (todoCmd === '' || todoCmd === 'list' || todoCmd === 'show' || todoCmd.startsWith('list ')) {
+          let tasklist = null;
+          let listLabel = '';
+          const listArg = todoCmd.replace(/^(?:list|show)\s*/, '').trim();
+          if (listArg) {
+            tasklist = await resolveListName(listArg);
+            if (!tasklist) {
+              // Try as a number from taskListMap
+              const state = await brain.loadThread(threadKey);
+              const num = parseInt(listArg, 10);
+              if (!isNaN(num) && state?.taskListMap?.[num]) {
+                tasklist = state.taskListMap[num].id;
+                listLabel = state.taskListMap[num].title;
+              } else {
+                await sendReply(chatId, `List "${listArg}" not found. Run "todo all" to see your lists.`);
+                return;
+              }
+            }
+          }
+
+          const items = await tasks.listTasks({ tasklist });
           if (!items.length) {
-            await sendReply(chatId, '✅ No todos! You\'re all caught up.');
+            await sendReply(chatId, `✅ No todos${listLabel ? ` in "${listLabel}"` : ''}! You're all caught up.`);
             return;
           }
           // Save number→ID mapping so user can say "todo done 2"
           const todoIdMap = {};
-          items.forEach((t, i) => { todoIdMap[i + 1] = t.id; });
+          items.forEach((t, i) => { todoIdMap[i + 1] = { id: t.id, tasklist: tasklist || null }; });
           await brain.saveThread(threadKey, { todoIdMap });
 
           const lines = items.map((t, i) =>
             `${i + 1}. ${t.title}${t.due ? ` (due ${t.due.slice(0, 10)})` : ''}${t.notes ? `\n   ${t.notes.slice(0, 100)}` : ''}`
           );
-          await sendReply(chatId, `📋 Todos:\n\n${lines.join('\n\n')}`);
+          await sendReply(chatId, `📋 Todos${listLabel ? ` (${listLabel})` : ''}:\n\n${lines.join('\n\n')}`);
           return;
         }
 
         if (todoCmd.startsWith('add ')) {
-          const title = todoCmdRaw.replace(/^add\s*/i, '').trim();
-          if (!title) {
-            await sendReply(chatId, 'Usage: todo add Buy groceries');
+          const raw = todoCmdRaw.replace(/^add\s*/i, '').trim();
+          if (!raw) {
+            await sendReply(chatId, 'Usage: todo add <task>\n       todo add pick up groceries\n       todo add buy milk by Friday');
             return;
           }
-          const result = await tasks.addTask({ title });
-          await sendReply(chatId, `✅ Added: ${result.title}`);
+
+          let tasklist = null;
+          let listLabel = '';
+          let taskText = raw;
+
+          // Check if the first word(s) match a known list name
+          // e.g. "Work amazon order" → list=Work, task="amazon order"
+          // e.g. "My Tasks buy milk" → list=My Tasks, task="buy milk"
+          const state = await brain.loadThread(threadKey);
+          const listMap = state?.taskListMap;
+          if (listMap) {
+            // Sort list names longest first so "My Tasks" matches before "My"
+            const listNames = Object.values(listMap).map(v => v.title).sort((a, b) => b.length - a.length);
+            for (const name of listNames) {
+              if (raw.toLowerCase().startsWith(name.toLowerCase() + ' ')) {
+                tasklist = Object.values(listMap).find(v => v.title.toLowerCase() === name.toLowerCase())?.id;
+                listLabel = name;
+                taskText = raw.slice(name.length).trim();
+                break;
+              }
+            }
+          }
+
+          // Also still support "list <name>" at the end as fallback
+          if (!tasklist) {
+            const listMatch = raw.match(/\s+list\s+(.+)$/i);
+            if (listMatch) {
+              const listName = listMatch[1].trim();
+              taskText = raw.slice(0, listMatch.index).trim();
+              tasklist = await resolveListName(listName);
+              if (!tasklist) {
+                await sendReply(chatId, `List "${listName}" not found. Run "todo all" to see your lists.`);
+                return;
+              }
+              listLabel = listName;
+            }
+          }
+
+          const { title, due: dueRaw } = extractDueDate(taskText);
+          const due = dueRaw && calendar ? calendar.resolveDate(dueRaw) : dueRaw || undefined;
+          const result = await tasks.addTask({ title, due, tasklist });
+          await sendReply(chatId, `✅ Added: ${result.title}${due ? ` (due ${due})` : ''}${listLabel ? ` → ${listLabel}` : ''}`);
           return;
         }
 
         if (todoCmd.startsWith('done ')) {
           const input = todoCmd.replace(/^done\s*/, '').trim();
-          const taskId = await resolveTodoId(input);
-          const result = await tasks.completeTask(taskId);
+          const { id: taskId, tasklist } = await resolveTodoId(input);
+          const result = await tasks.completeTask(taskId, tasklist);
           await sendReply(chatId, `✅ Completed: ${result.title}`);
           return;
         }
 
         if (todoCmd.startsWith('delete ') || todoCmd.startsWith('remove ')) {
           const input = todoCmd.replace(/^(?:delete|remove)\s*/, '').trim();
-          const taskId = await resolveTodoId(input);
-          await tasks.deleteTask(taskId);
+          const { id: taskId, tasklist } = await resolveTodoId(input);
+          await tasks.deleteTask(taskId, tasklist);
           await sendReply(chatId, '✅ Todo deleted.');
           return;
         }
 
         await sendReply(chatId,
-          'Todo commands:\n• todo list\n• todo add <task>\n• todo done <id>\n• todo delete <id>'
+          'Todo commands:\n• todo list — tasks from default list\n• todo list <name or #> — tasks from a specific list\n• todo all — show all your task lists\n• todo add <task> — add to default list\n• todo add <task> list <name> — add to a specific list\n• todo add <task> by <date> — add with due date\n• todo done <#>\n• todo delete <#>'
         );
         return;
       }
@@ -710,12 +1331,47 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
           return;
         }
 
+        if (roundupCmd.startsWith('follow ')) {
+          let handle = messageBody.replace(/^roundup\s+follow\s+/i, '').trim().replace(/^@/, '');
+          if (!handle) { await sendReply(chatId, 'Usage: roundup follow <handle>\nExample: roundup follow elonmusk'); return; }
+          const handles = await brain.loadRoundupHandles();
+          if (handles.includes(handle.toLowerCase())) {
+            await sendReply(chatId, `Already following @${handle} in your roundup.`);
+            return;
+          }
+          handles.push(handle.toLowerCase());
+          await brain.saveRoundupHandles(handles);
+          await sendReply(chatId, `✅ Now following @${handle} in your daily roundup.`);
+          return;
+        }
+
+        if (roundupCmd.startsWith('unfollow ')) {
+          let handle = messageBody.replace(/^roundup\s+unfollow\s+/i, '').trim().replace(/^@/, '').toLowerCase();
+          if (!handle) { await sendReply(chatId, 'Usage: roundup unfollow <handle>'); return; }
+          const handles = await brain.loadRoundupHandles();
+          const filtered = handles.filter(h => h !== handle);
+          if (filtered.length === handles.length) {
+            await sendReply(chatId, `@${handle} wasn't in your roundup.`);
+            return;
+          }
+          await brain.saveRoundupHandles(filtered);
+          await sendReply(chatId, `✅ Unfollowed @${handle} from your daily roundup.`);
+          return;
+        }
+
         if (roundupCmd === 'topics' || roundupCmd === 'list') {
           const brainTopics = await brain.loadRoundupTopics();
           const envTopics = (config.roundup.dailyTopics || '').split(',').map(s => s.trim()).filter(Boolean);
-          const all = [...new Set([...envTopics, ...brainTopics])];
-          if (!all.length) { await sendReply(chatId, 'No roundup topics configured.'); return; }
-          await sendReply(chatId, `📰 Roundup topics:\n\n${all.map(t => `• ${t}`).join('\n')}`);
+          const allTopics = [...new Set([...envTopics, ...brainTopics])];
+          const brainHandles = await brain.loadRoundupHandles();
+          const envHandles = (config.roundup.twitterHandles || '').split(',').map(s => s.trim()).filter(Boolean);
+          const allHandles = [...new Set([...envHandles, ...brainHandles])];
+
+          const lines = [];
+          if (allTopics.length) lines.push('📰 Topics:\n' + allTopics.map(t => `  • ${t}`).join('\n'));
+          if (allHandles.length) lines.push('🐦 Following:\n' + allHandles.map(h => `  • @${h}`).join('\n'));
+          if (!lines.length) { await sendReply(chatId, 'No roundup topics or handles configured.'); return; }
+          await sendReply(chatId, `📰 Your roundup:\n\n${lines.join('\n\n')}`);
           return;
         }
 
@@ -741,7 +1397,7 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
           return;
         }
 
-        await sendReply(chatId, 'Roundup commands:\n• roundup — send daily digest now\n• roundup weekly — send weekly digest\n• roundup topics — see current topics\n• roundup add <topic> — add a topic\n• roundup remove <topic> — remove a topic');
+        await sendReply(chatId, 'Roundup commands:\n• roundup — send daily digest now\n• roundup weekly — send weekly digest\n• roundup topics — see topics & handles\n• roundup add <topic> — add a news topic\n• roundup remove <topic> — remove a topic\n• roundup follow <handle> — follow a Twitter account\n• roundup unfollow <handle> — unfollow');
         return;
       }
 
@@ -750,13 +1406,75 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
         const calCmd = lower.replace(/^cal\s*/, '').trim();
         const calCmdRaw = messageBody.replace(/^cal\s*/i, '').trim();
 
+        if (calCmd === 'calendars') {
+          const cals = await calendar.listCalendars();
+          if (!cals.length) {
+            await sendReply(chatId, '📅 No calendars found.');
+            return;
+          }
+          const calendarIdMap = {};
+          const lines = cals.map((c, i) => {
+            const num = i + 1;
+            calendarIdMap[num] = c.id;
+            const badge = c.primary ? ' (primary)' : '';
+            const role = c.accessRole ? ` [${c.accessRole}]` : '';
+            return `${num}. ${c.summary}${badge}${role}`;
+          });
+          await brain.saveThread(threadKey, { calendarIdMap });
+          await sendReply(chatId, `📅 Your calendars:\n\n${lines.join('\n')}\n\nUse the number when creating events, e.g.: cal create 2 "Meeting" tomorrow 3pm 1h`);
+          return;
+        }
+
+        // Helper: save event number mapping and format event list
+        async function formatAndSaveEvents(events, label) {
+          const eventIdMap = {};
+          events.forEach((e, i) => { eventIdMap[i + 1] = { id: e.id, calendarId: e.calendarId || 'primary' }; });
+          await brain.saveThread(threadKey, { eventIdMap });
+          const lines = events.map((e, i) => `${i + 1}. ${e.formatted}`);
+          await sendReply(chatId, `📅 ${label}:\n\n${lines.join('\n\n')}`);
+        }
+
+        if (calCmd === 'default') {
+          const state = await brain.loadThread(threadKey);
+          const defaultCal = state?.defaultCalendarId;
+          if (defaultCal) {
+            await sendReply(chatId, `📅 Default calendar: ${defaultCal}\nUse "cal default <#>" to change it, or "cal default clear" to reset.`);
+          } else {
+            await sendReply(chatId, '📅 No default calendar set. Use "cal default <#>" after running "cal calendars".');
+          }
+          return;
+        }
+
+        if (calCmd.startsWith('default ')) {
+          const arg = calCmd.replace(/^default\s*/, '').trim();
+          if (arg === 'clear' || arg === 'reset' || arg === 'none') {
+            await brain.saveThread(threadKey, { defaultCalendarId: null });
+            await sendReply(chatId, '✅ Default calendar cleared. Events will be created on your primary calendar.');
+            return;
+          }
+          const num = parseInt(arg, 10);
+          if (isNaN(num) || num < 1) {
+            await sendReply(chatId, 'Usage: cal default <#>\nRun "cal calendars" first to see your calendar numbers.');
+            return;
+          }
+          const state = await brain.loadThread(threadKey);
+          const calId = state?.calendarIdMap?.[num];
+          if (!calId) {
+            await sendReply(chatId, `Calendar #${num} not found. Run "cal calendars" first.`);
+            return;
+          }
+          await brain.saveThread(threadKey, { defaultCalendarId: calId });
+          await sendReply(chatId, `✅ Default calendar set to #${num}. All new events will be created there unless you specify a different number.`);
+          return;
+        }
+
         if (calCmd === '' || calCmd === 'list' || calCmd === 'today') {
           const events = await calendar.listEvents();
           if (!events.length) {
             await sendReply(chatId, '📅 No events today.');
             return;
           }
-          await sendReply(chatId, `📅 Today's events:\n\n${events.map(e => e.formatted).join('\n\n')}`);
+          await formatAndSaveEvents(events, "Today's events");
           return;
         }
 
@@ -777,7 +1495,7 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
             await sendReply(chatId, `📅 No events for ${arg}.`);
             return;
           }
-          await sendReply(chatId, `📅 Events (${arg}):\n\n${events.map(e => e.formatted).join('\n\n')}`);
+          await formatAndSaveEvents(events, `Events (${arg})`);
           return;
         }
 
@@ -789,13 +1507,25 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
         }
 
         if (calCmd.startsWith('create ')) {
-          // Flexible regex: title in quotes, date (any format), time (any format), then rest (duration + extras)
-          const createMatch = calCmdRaw.match(/^create\s+["\u201c\u201e\u00ab]([^"\u201d\u201f\u00bb]+)["\u201d\u201f\u00bb]\s+(\S+)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s+(.+)$/is);
+          // Flexible regex: optional calendar number, title in quotes, date, time, then rest (duration + extras)
+          const createMatch = calCmdRaw.match(/^create\s+(?:(\d)\s+)?["\u201c\u201e\u00ab]([^"\u201d\u201f\u00bb]+)["\u201d\u201f\u00bb]\s+(.+?)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm))\s+(.+)$/is);
           if (!createMatch) {
-            await sendReply(chatId, 'Usage: cal create "Title" <date> <time> <duration>\nExamples:\n• cal create "Dentist" 03/19 2pm 1 hour\n• cal create "Lunch" tomorrow 12:30pm 1h30m');
+            await sendReply(chatId, 'Usage: cal create [#] "Title" <date> <time> <duration>\nExamples:\n• cal create "Dentist" 03/19 2pm 1 hour\n• cal create 2 "Lunch" tomorrow 12:30pm 1h30m\n\nUse "cal calendars" to see calendar numbers.');
             return;
           }
-          const [, title, date, time, remainder] = createMatch;
+          const [, calNum, title, date, time, remainder] = createMatch;
+          // Resolve calendar: explicit number > default > primary
+          let calendarId = null;
+          const threadState2 = await brain.loadThread(threadKey);
+          if (calNum) {
+            calendarId = threadState2?.calendarIdMap?.[parseInt(calNum, 10)] || null;
+            if (!calendarId) {
+              await sendReply(chatId, `Calendar #${calNum} not found. Run "cal calendars" first to see your calendars.`);
+              return;
+            }
+          } else if (threadState2?.defaultCalendarId) {
+            calendarId = threadState2.defaultCalendarId;
+          }
           // Extract duration from the front of remainder, leaving attendees/location behind
           const { minutes, rest } = calendar.extractDuration(remainder);
           const locMatch = (rest || '').match(/location\s*:\s*["\u201c]([^"\u201d]+)["\u201d]/i);
@@ -803,17 +1533,24 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
           const attendeePart = (rest || '').replace(/location\s*:\s*["\u201c][^"\u201d]*["\u201d]/i, '').trim();
           const attendees = attendeePart ? attendeePart.split(',').map(s => s.trim()).filter(Boolean) : [];
 
-          const result = await calendar.createEvent({ summary: title, date, time, duration: `${minutes}m`, attendees, location });
+          const result = await calendar.createEvent({ summary: title, date, time, duration: `${minutes}m`, attendees, location, calendarId });
           await sendReply(chatId, `✅ Event created: ${result.summary}\n${result.htmlLink || ''}`);
           return;
         }
 
         if (calCmd.startsWith('update ')) {
           const parts = calCmdRaw.replace(/^update\s*/i, '').trim().split(/\s+/);
-          const eventId = parts[0];
-          if (!eventId || parts.length < 2) {
-            await sendReply(chatId, 'Usage: cal update <eventId> title="New Title" time=14:00 date=2026-03-15 duration=1h location="Room"');
+          let eventRef = parts[0];
+          if (!eventRef || parts.length < 2) {
+            await sendReply(chatId, 'Usage: cal update <#> title="New Title" time=14:00 date=2026-03-15 duration=1h\n\nUse the event number from "cal list".');
             return;
+          }
+          // Resolve event number to real ID
+          let eventId = eventRef;
+          const num = parseInt(eventRef, 10);
+          if (!isNaN(num) && String(num) === eventRef && num >= 1) {
+            const state = await brain.loadThread(threadKey);
+            if (state?.eventIdMap?.[num]) eventId = state.eventIdMap[num].id;
           }
           const updates = {};
           const kvStr = parts.slice(1).join(' ');
@@ -831,14 +1568,21 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
         }
 
         if (calCmd.startsWith('delete ')) {
-          const eventId = calCmd.replace(/^delete\s*/, '').trim();
+          const eventRef = calCmd.replace(/^delete\s*/, '').trim();
+          // Resolve event number to real ID
+          let eventId = eventRef;
+          const num = parseInt(eventRef, 10);
+          if (!isNaN(num) && String(num) === eventRef && num >= 1) {
+            const state = await brain.loadThread(threadKey);
+            if (state?.eventIdMap?.[num]) eventId = state.eventIdMap[num].id;
+          }
           await calendar.deleteEvent(eventId);
           await sendReply(chatId, `✅ Event deleted.`);
           return;
         }
 
         await sendReply(chatId,
-          'Calendar commands:\n• cal / cal list / cal list <date> / cal list week\n• cal get <id>\n• cal create "Title" <date> <time> <duration> [attendees]\n• cal update <id> field=value\n• cal delete <id>'
+          'Calendar commands:\n• cal / cal list / cal list <date> / cal list week\n• cal calendars — list all calendars\n• cal default <#> — set default calendar\n• cal create [#] "Title" <date> <time> <duration>\n• cal update <#> field=value\n• cal delete <#>\n\nUse event numbers from "cal list" for update/delete.'
         );
         return;
       }
@@ -855,16 +1599,38 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
               'You route natural-language messages to built-in commands for a Telegram bot. ' +
               'Return ONLY valid JSON. Pick the matching intent or return {"intent":"none"}.\n\n' +
               'Intents:\n' +
+              '• {"intent":"help"} — user asking what the bot can do, how to use it, or listing commands\n' +
               '• {"intent":"email_check"} — user wants to see inbox/recent emails\n' +
               '• {"intent":"email_search","query":"search terms"} — search emails\n' +
               '• {"intent":"email_send","to":"addr","subject":"subj","body":"text"} — send an email\n' +
-              '• {"intent":"todo_list"} — list todos\n' +
-              '• {"intent":"todo_add","title":"task text"} — add a todo\n' +
-              '• {"intent":"todo_done","index":"number"} — complete a todo by its list number\n' +
-              '• {"intent":"todo_delete","index":"number"} — delete a todo by its list number\n' +
-              '• {"intent":"cal_list","date":"date or empty"} — list calendar events\n' +
-              '• {"intent":"cal_create","title":"t","date":"d","time":"t","duration":"d","location":"optional","attendees":"optional comma-sep emails"} — create event\n' +
-              '• {"intent":"none"} — doesn\'t match any built-in action',
+              '• {"intent":"todo_list"} — list todos, tasks, or what\'s on their plate\n' +
+              '• {"intent":"todo_add","title":"task text"} — add a todo, reminder, or task\n' +
+              '• {"intent":"todo_done","index":"number"} — complete/check off a todo by its list number\n' +
+              '• {"intent":"todo_delete","index":"number"} — delete/remove a todo by its list number\n' +
+              '• {"intent":"cal_list","date":"date or empty"} — list calendar events, schedule, meetings\n' +
+              '• {"intent":"cal_create","title":"t","date":"d","time":"t","duration":"d","location":"optional","attendees":"optional comma-sep emails"} — create/schedule an event or meeting\n' +
+              '• {"intent":"reserve","restaurant":"name","city":"optional","date":"YYYY-MM-DD","time":"HH:MM","partySize":2} — make a restaurant reservation (OpenTable link)\n' +
+              '• {"intent":"reserve_call","restaurant":"name","city":"optional","date":"YYYY-MM-DD","time":"HH:MM","partySize":2} — call a restaurant to make a reservation\n' +
+              '• {"intent":"roundup_daily"} — get the daily news briefing/digest\n' +
+              '• {"intent":"roundup_weekly"} — get the weekly digest\n' +
+              '• {"intent":"repos_list"} — list repos/projects\n' +
+              '• {"intent":"brain_show"} — show what the bot remembers\n' +
+              '• {"intent":"brain_reset"} — clear/reset bot memory\n' +
+              '• {"intent":"none"} — conversational, greeting, thanks, or doesn\'t match any action\n\n' +
+              'Disambiguation:\n' +
+              '- "what\'s on my plate" / "what do I need to do" = todo_list (tasks)\n' +
+              '- "what do I have going on" / "how does my day look" = cal_list (calendar)\n' +
+              '- "remind me to X" / "don\'t forget to X" / "I need to X" = todo_add\n' +
+              '- "schedule a meeting" / "set up a call" / "block time" = cal_create\n' +
+              '- "catch me up" / "what did I miss" / "give me the news" = roundup_daily\n' +
+              '- "hi" / "thanks" / "ok" / "how are you" = none (conversational)\n\n' +
+              'Examples:\n' +
+              '- "any meetings tomorrow?" -> {"intent":"cal_list","date":"tomorrow"}\n' +
+              '- "remind me to call the dentist" -> {"intent":"todo_add","title":"call the dentist"}\n' +
+              '- "check my inbox" -> {"intent":"email_check"}\n' +
+              '- "book dinner for 4 at Nobu Saturday 7pm" -> {"intent":"reserve","restaurant":"Nobu","date":"...","time":"19:00","partySize":4}\n' +
+              '- "send Sarah an email about the Q4 report" -> {"intent":"email_send","to":"sarah","subject":"Q4 Report","body":"..."}\n' +
+              '- "what can you do?" -> {"intent":"help"}',
             messages: [{ role: 'user', content: messageBody }],
           });
           const intentRaw = intentResp.content?.find(c => c.type === 'text')?.text?.trim() || '';
@@ -887,15 +1653,17 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
           if (intent.intent === 'email_send' && gmail && intent.to && intent.subject && intent.body) {
             let body = intent.body;
             body = await humanize(anthropic, config.anthropic.model, body);
-            await gmail.sendEmail({ to: intent.to, subject: intent.subject, body });
-            await sendReply(chatId, `✅ Email sent to ${intent.to}`);
+            await brain.saveThread(threadKey, {
+              pendingEmail: { to: intent.to, subject: intent.subject, body },
+            });
+            await sendReply(chatId, `📧 Preview:\n\nTo: ${intent.to}\nSubject: ${intent.subject}\n\n${body.slice(0, 1000)}\n\n✉️ Reply "send" to confirm or "cancel" to discard.`);
             return;
           }
           if (intent.intent === 'todo_list' && tasks?.enabled) {
             const items = await tasks.listTasks();
             if (!items.length) { await sendReply(chatId, '✅ No todos! You\'re all caught up.'); return; }
             const todoIdMap = {};
-            items.forEach((t, i) => { todoIdMap[i + 1] = t.id; });
+            items.forEach((t, i) => { todoIdMap[i + 1] = { id: t.id, tasklist: null }; });
             await brain.saveThread(threadKey, { todoIdMap });
             const lines = items.map((t, i) => `${i + 1}. ${t.title}${t.due ? ` (due ${t.due.slice(0, 10)})` : ''}`);
             await sendReply(chatId, `📋 Todos:\n\n${lines.join('\n\n')}`);
@@ -909,15 +1677,16 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
           if ((intent.intent === 'todo_done' || intent.intent === 'todo_delete') && tasks?.enabled && intent.index) {
             const num = parseInt(intent.index, 10);
             let taskId = intent.index;
+            let tasklist = null;
             if (!isNaN(num) && num >= 1) {
               const state = await brain.loadThread(threadKey);
-              if (state?.todoIdMap?.[num]) taskId = state.todoIdMap[num];
+              if (state?.todoIdMap?.[num]) { taskId = state.todoIdMap[num].id; tasklist = state.todoIdMap[num].tasklist; }
             }
             if (intent.intent === 'todo_done') {
-              const result = await tasks.completeTask(taskId);
+              const result = await tasks.completeTask(taskId, tasklist);
               await sendReply(chatId, `✅ Completed: ${result.title}`);
             } else {
-              await tasks.deleteTask(taskId);
+              await tasks.deleteTask(taskId, tasklist);
               await sendReply(chatId, '✅ Todo deleted.');
             }
             return;
@@ -945,11 +1714,129 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
             await sendReply(chatId, `✅ Event created: ${result.summary}\n${result.htmlLink || ''}`);
             return;
           }
+          if (intent.intent === 'reserve' && anthropic && intent.restaurant) {
+            const details = { restaurant: intent.restaurant, city: intent.city || null, date: intent.date, time: intent.time, partySize: intent.partySize || 2 };
+            if (!details.date || !details.time) {
+              await sendReply(chatId, `I found "${details.restaurant}" but need a date and time. Try:\nreserve ${details.restaurant} for ${details.partySize || 2} on Saturday at 7pm`);
+              return;
+            }
+            const openTableUrl = buildOpenTableUrl(details);
+            const mapsUrl = buildGoogleMapsUrl(details);
+            await sendReply(chatId, formatReservationReply(details, openTableUrl, mapsUrl));
+            return;
+          }
+          if (intent.intent === 'reserve_call' && anthropic && intent.restaurant) {
+            const rc = config.reservations;
+            if (!rc.blandApiKey) {
+              // Fall back to OpenTable link
+              const details = { restaurant: intent.restaurant, city: intent.city || null, date: intent.date, time: intent.time, partySize: intent.partySize || 2 };
+              if (details.date && details.time) {
+                const openTableUrl = buildOpenTableUrl(details);
+                const mapsUrl = buildGoogleMapsUrl(details);
+                await sendReply(chatId, 'Phone calls not configured. Here\'s an OpenTable link instead:\n\n' + formatReservationReply(details, openTableUrl, mapsUrl));
+              } else {
+                await sendReply(chatId, 'Phone calls not configured (BLAND_API_KEY missing). Try "reserve" instead for an OpenTable link.');
+              }
+              return;
+            }
+            const details = { restaurant: intent.restaurant, city: intent.city || null, date: intent.date, time: intent.time, partySize: intent.partySize || 2 };
+            if (!details.date || !details.time) {
+              await sendReply(chatId, `I found "${details.restaurant}" but need a date and time. Try:\ncall ${details.restaurant} and reserve for ${details.partySize || 2} on Saturday at 7pm`);
+              return;
+            }
+            let phone = null;
+            if (rc.placesApiKey) {
+              await sendReply(chatId, `📞 Looking up ${details.restaurant}...`);
+              const place = await lookupRestaurantPhone(rc.placesApiKey, details.restaurant, details.city);
+              if (place?.phone) {
+                phone = place.phone;
+                await sendReply(chatId, `Found: ${place.name}\n${place.address}\n📞 ${place.phone}`);
+              }
+            }
+            if (!phone) {
+              await sendReply(chatId, `I couldn't find a phone number for ${details.restaurant}. Please include it:\ncall +1234567890 and reserve a table for 2 at ${details.restaurant} on ${details.date} at ${details.time}`);
+              return;
+            }
+            details.phone = phone;
+            await sendReply(chatId, `📞 Calling ${details.restaurant} at ${phone}...\nThis may take a minute or two.`);
+            try {
+              const callId = await makeReservationCall(rc.blandApiKey, { phone, restaurant: details.restaurant, date: details.date, time: details.time, partySize: details.partySize, callerName: rc.callerName });
+              await sendReply(chatId, '📞 Call in progress...');
+              const result = await waitForCallCompletion(rc.blandApiKey, callId, { onProgress: msg => sendReply(chatId, msg) });
+              await sendReply(chatId, formatCallResult(details, result));
+            } catch (err) {
+              await sendReply(chatId, `❌ Call failed: ${(err?.message || 'unknown error').slice(0, 200)}`);
+            }
+            return;
+          }
+          // New intents added to safety net
+          if (intent.intent === 'help') {
+            await sendReply(chatId, helpText());
+            return;
+          }
+          if (intent.intent === 'roundup_daily') {
+            const rdeps = { config, anthropic, gmail, calendar, tasks, brain };
+            await sendReply(chatId, '📰 Sending daily roundup...');
+            try { await sendDailyRoundup(rdeps); await sendReply(chatId, '✅ Daily roundup sent!'); }
+            catch (err) { await sendReply(chatId, `❌ Daily roundup failed: ${(err?.message || 'unknown').slice(0, 300)}`); }
+            return;
+          }
+          if (intent.intent === 'roundup_weekly') {
+            const rdeps = { config, anthropic, gmail, calendar, tasks, brain };
+            await sendReply(chatId, '📰 Sending weekly roundup...');
+            try { await sendWeeklyRoundup(rdeps); await sendReply(chatId, '✅ Weekly roundup sent!'); }
+            catch (err) { await sendReply(chatId, `❌ Weekly roundup failed: ${(err?.message || 'unknown').slice(0, 300)}`); }
+            return;
+          }
+          if (intent.intent === 'repos_list') {
+            const repoList = await brain.listRepos();
+            if (!repoList.length) { await sendReply(chatId, 'No repos indexed yet.'); return; }
+            const list = repoList.map(r => `• ${r.name} (${r.language || '?'})`).join('\n');
+            await sendReply(chatId, `📦 Indexed repos:\n${list}`);
+            return;
+          }
+          if (intent.intent === 'brain_show') {
+            const state = await brain.loadThread(threadKey);
+            await sendReply(chatId, `🧠 Thread memory:\n\`\`\`\n${JSON.stringify(state || {}, null, 2).slice(0, 3000)}\n\`\`\``);
+            return;
+          }
+          if (intent.intent === 'brain_reset') {
+            await brain.saveThread(threadKey, {
+              clearedAt: new Date().toISOString(),
+              lastRepo: null, lastTask: null, lastPrUrl: null,
+              lastBranch: null, lastPlan: null, lastError: null,
+              lastErrorAt: null, lastErrorJobId: null,
+              lastErrorContext: null, lastErrorLogs: null,
+              lastClaudeRawSnippet: null,
+            });
+            await sendReply(chatId, '✅ Brain reset.');
+            return;
+          }
           // intent === 'none' → fall through to skill pipeline / chat
         } catch (intentErr) {
           // Intent parsing failed — fall through silently
           log('Intent router error (falling through):', intentErr?.message || intentErr);
         }
+      }
+
+      // ── Learn: name onboarding or challenge response ─────────────
+      // If user has an active lesson or we're awaiting their name,
+      // treat their message as a learn response.
+      if (threadState?.activeLesson || threadState?.learnProgress?.awaitingName) {
+        const userName = message.from.first_name || message.from.username || String(message.from.id);
+        const handled = await handleChallengeResponse({
+          userCode: messageBody,
+          userName,
+          threadKey,
+          threadState,
+          brain,
+          octokit,
+          anthropic,
+          model: config.anthropic.model,
+          config,
+          sendReply: (text) => sendReply(chatId, text),
+        });
+        if (handled) return;
       }
 
       // Claude general response fallback — with skill generation

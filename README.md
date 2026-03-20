@@ -19,7 +19,8 @@ No coding experience needed to get it running. This guide walks you through ever
 - 📅 **Manage your calendar** — View, create, and update events
 - ✅ **Todo list** — Add, complete, and manage your Google Tasks
 - 🍽️ **Make reservations** — Book restaurants via OpenTable or have AI call them for you
-- 📰 **Daily & weekly roundups** — Get your schedule, todos, and news delivered via Telegram and/or email every morning
+- 📰 **Daily & weekly roundups** — Get your schedule, todos, tweets, and news delivered via Telegram every morning
+- 💬 **Natural language** — Talk naturally ("what's on my schedule?", "remind me to call Bob", "any new emails?")
 - 🧠 **Remembers everything** — Conversations, skills, and context persist across sessions
 - 🔒 **Safe** — Sandboxed execution, rate limiting, command denylist, access control
 
@@ -149,25 +150,41 @@ generate a random 16 character password
 base64 encode "hello world"
 ```
 
-### Quick reference
+### Talk naturally
 
-| What to type | What it does |
+You don't need to memorize commands. Just say what you need:
+
+| What you say | What happens |
+|---|---|
+| "what's on my schedule today?" | Shows your calendar events |
+| "any meetings tomorrow?" | Calendar events for tomorrow |
+| "remind me to call Bob by Friday" | Adds a todo with a due date |
+| "what's on my plate?" | Shows your todo list |
+| "mark 3 as done" | Completes todo #3 |
+| "check my email" | Shows recent emails |
+| "find emails from Sarah" | Searches your inbox |
+| "book dinner for 4 at Nobu on Saturday at 7pm" | Gets an OpenTable link |
+| "catch me up" | Sends the daily news roundup |
+| "what can you do?" | Shows all commands |
+
+### Exact commands
+
+These also work if you prefer them:
+
+| Command | What it does |
 |---|---|
 | `help` | Show all commands |
 | `repo: owner/repo` + `task: do something` | Create a pull request |
 | `tell me about owner/repo` | Get a summary of a GitHub repo |
-| `summarize https://github.com/.../pull/123` | Summarize a pull request |
-| `email check` | Show recent emails |
-| `email send user@example.com "Subject" Body` | Send an email (auto-humanized) |
-| `cal` | Show today's calendar events |
+| `email send user@example.com "Subject" Body` | Send an email (with preview + confirmation) |
 | `cal create "Lunch" 03/20 12pm 1 hour` | Create a calendar event |
-| `todo list` | Show your todos |
-| `todo add Buy groceries` | Add a todo |
-| `todo done <id>` | Complete a todo |
-| `reserve table for 2 at Nobu on Saturday at 7pm` | Get an OpenTable booking link |
-| `call Nobu and reserve a table for 2 on Saturday at 7pm` | AI calls the restaurant for you |
+| `cal calendars` | List all your calendars |
+| `cal default 2` | Set default calendar for new events |
+| `cal delete 3` | Delete event #3 from your last listing |
+| `todo add Buy groceries by Friday` | Add a todo with a due date |
+| `todo done 2` | Complete todo #2 |
+| `roundup` | Get your daily briefing now |
 | `skills list` | See all learned skills |
-| `skills delete <name>` | Remove a learned skill |
 | `brain status` | Check if memory is working |
 | `brain reset` | Clear conversation memory |
 | `self destruct` | Shut down the VM |
@@ -233,7 +250,7 @@ To check logs: `docker logs -f openclaw` · To stop: `docker rm -f openclaw`
 
 - **Command denylist** — `rm`, `curl`, `wget`, `sudo`, `docker`, and 20+ other dangerous commands are blocked
 - **VM sandbox** — Generated skills run in Node.js `vm` with no `require`, `fs`, `process`, or `eval`
-- **Rate limited** — Max 6 requests per 30 seconds per user to prevent abuse
+- **Rate limited** — Configurable per-user rate limiting (default: 20 requests per 30 seconds)
 - **Access control** — Use a joining code and/or user ID allowlist to restrict who can use it
 - **Emails are humanized** — Outgoing emails are rewritten so they don't sound AI-generated
 - **Secrets stay local** — API keys are read from env vars and never exposed to generated code or AI prompts
@@ -321,19 +338,21 @@ Restart OpenClaw. You now have email, calendar, and todos working.
 
 ## Daily & Weekly Roundups
 
-OpenClaw sends you a morning briefing every day at 8am — right in your Telegram chat (and optionally via email too). It automatically delivers to anyone who's messaged the bot.
+OpenClaw sends you a morning briefing every day at 9am EST — right in your Telegram chat. It automatically delivers to anyone who's messaged the bot.
 
 **Daily roundup includes:**
 - 📅 Today's calendar events
 - ✅ Open todos
-- 📰 News, Twitter, and LinkedIn updates
+- 🐦 Latest tweets from people you follow (via X API v2)
+- 📰 News on topics you care about
+- 👤 News mentions of people you track
 
 **Weekly roundup** — Deep-dive news topics, sent on Saturday (configurable)
 
 Add to `.env`:
 
 ```
-# Daily — news topics, Twitter, LinkedIn
+# Daily — news topics, Twitter, people to track
 ROUNDUP_DAILY_TOPICS=AI,startups,cybersecurity
 ROUNDUP_TWITTER_HANDLES=elonmusk,naval,paulg
 ROUNDUP_LINKEDIN_NAMES=satya-nadella,reid-hoffman
@@ -341,20 +360,19 @@ ROUNDUP_LINKEDIN_NAMES=satya-nadella,reid-hoffman
 # Weekly — deep-dive topics (sent on Saturday)
 ROUNDUP_WEEKLY_TOPICS=machine learning,venture capital
 ROUNDUP_WEEKLY_DAY=saturday
+
+# When to send (24h format, EST timezone, default: 9 = 9am EST)
+ROUNDUP_SEND_HOUR=9
+
+# X/Twitter API v2 bearer token (for actual tweets — get from developer.x.com)
+X_BEARER_TOKEN=your-bearer-token
 ```
 
-Calendar and todos are included automatically if you have Google APIs configured (see above). News topics work with no API keys (uses Google News RSS).
+Calendar and todos are included automatically if you have Google APIs configured (see above). News topics work with no API keys (uses Google News RSS). Twitter uses X API v2 if `X_BEARER_TOKEN` is set, otherwise falls back to RSS/Google News.
 
-To also receive roundups via email, add:
+Roundups can also be sent via email if `ROUNDUP_EMAIL_TO` is configured.
 
-```
-ROUNDUP_EMAIL_TO=you@email.com
-ROUNDUP_EMAIL_FROM=you@gmail.com
-```
-
-**Test it:** Send `roundup` or `roundup daily` in your bot chat to get an instant preview.
-
-Twitter and LinkedIn work automatically with no API keys (uses Google News RSS). Email delivery requires Gmail OAuth (see Google APIs above).
+**Test it:** Send `roundup`, `catch me up`, or `give me my briefing` in your bot chat to get an instant preview.
 
 ---
 
@@ -384,10 +402,11 @@ Get a Bland.ai key at [app.bland.ai](https://app.bland.ai).
 server.js                    # Entry point
 src/
 ├── telegram.js              # Telegram message handler + command router
+├── matchers.js              # Natural language intent matchers (zero-latency regex)
 ├── config.js                # Environment config
 ├── skills.js                # Self-healing skill generator (Voyager/Reflexion)
 ├── reservations.js          # Restaurant booking (OpenTable + Bland.ai)
-├── roundup.js               # Daily & weekly digests (schedule, todos, news)
+├── roundup.js               # Daily & weekly digests (schedule, todos, tweets, news)
 ├── brain/
 │   └── brain.js             # Persistent memory (local fs + GCS backup)
 ├── agent/
