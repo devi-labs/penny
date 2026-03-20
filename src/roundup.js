@@ -173,7 +173,7 @@ async function compileDigest(anthropic, model, sections, kind) {
       model,
       max_tokens: 2000,
       system:
-        `You are OpenClaw's digest writer. Compile these raw items into a clean, scannable ${kind} email digest. ` +
+        `You are a digest writer. Compile these raw items into a clean, scannable ${kind} email digest. ` +
         'Keep it concise — short summaries, bullet points, include all links. ' +
         'Do not invent information. Do not add items that are not in the source data.',
       messages: [{ role: 'user', content: `Compile this into a readable ${kind} digest email:\n\n${rawContent}` }],
@@ -294,7 +294,15 @@ async function sendDailyRoundup({ config, anthropic, octokit, gmail, calendar, t
     body = sections.map(s => `${s.heading}\n${s.items.join('\n')}`).join('\n\n');
   }
 
-  const subject = `OpenClaw Daily — ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`;
+  let githubUser = '';
+  if (octokit) {
+    try {
+      const { data } = await octokit.users.getAuthenticated();
+      githubUser = data.name || data.login || '';
+    } catch { /* ignore */ }
+  }
+  const datePart = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const subject = githubUser ? `Roundup for ${githubUser}, ${datePart}` : `Roundup for ${datePart}`;
   if (gmail?.enabled && rc.emailTo) {
     try {
       await gmail.sendEmail({ to: rc.emailTo, subject, body, from: rc.emailFrom || undefined });
@@ -312,7 +320,7 @@ async function sendDailyRoundup({ config, anthropic, octokit, gmail, calendar, t
 // ── Weekly Roundup ───────────────────────────────────────────────
 // Deep-dive topics, sent on the configured day (default: Saturday)
 
-async function sendWeeklyRoundup({ config, anthropic, gmail, brain }) {
+async function sendWeeklyRoundup({ config, anthropic, octokit, gmail, brain }) {
   const rc = config.roundup;
   const topics = parseList(rc.weeklyTopics);
 
@@ -343,7 +351,15 @@ async function sendWeeklyRoundup({ config, anthropic, gmail, brain }) {
     body = sections.map(s => `${s.heading}\n${s.items.join('\n')}`).join('\n\n');
   }
 
-  const subject = `OpenClaw Weekly — ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+  let githubUser = '';
+  if (octokit) {
+    try {
+      const { data } = await octokit.users.getAuthenticated();
+      githubUser = data.name || data.login || '';
+    } catch { /* ignore */ }
+  }
+  const datePart = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const subject = githubUser ? `Weekly Roundup for ${githubUser}, ${datePart}` : `Weekly Roundup for ${datePart}`;
   if (canEmail) {
     await gmail.sendEmail({ to: rc.emailTo, subject, body });
     console.log(`[roundup] Weekly roundup sent to ${rc.emailTo}`);

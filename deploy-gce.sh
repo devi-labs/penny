@@ -69,7 +69,8 @@ if gcloud compute instances describe "$INSTANCE_NAME" --zone="$ZONE" --project="
   gcloud compute instances update-container "$INSTANCE_NAME" \
     --zone="$ZONE" \
     --project="$GCP_PROJECT_ID" \
-    --container-image="$IMAGE"
+    --container-image="$IMAGE" \
+    --container-mount-host-path=host-path=/var/openclaw-brain,mount-path=/data/openclaw-brain
 
   echo "✅ Container updated on $INSTANCE_NAME"
 else
@@ -99,7 +100,17 @@ ufw allow OpenSSH >/dev/null 2>&1 || true
 ufw allow 8080/tcp >/dev/null 2>&1 || true
 ufw --force enable >/dev/null 2>&1 || true
 systemctl enable --now fail2ban || true
-echo "VM hardening complete."
+
+# ── Disk cleanup: prune stale Docker images/containers/logs daily ──
+cat > /etc/cron.daily/docker-cleanup <<'CRON'
+#!/bin/bash
+docker system prune -af --filter "until=72h" >/dev/null 2>&1 || true
+journalctl --vacuum-time=7d >/dev/null 2>&1 || true
+find /var/lib/docker/containers/ -name "*.log" -size +50M -exec truncate -s 10M {} \; 2>/dev/null || true
+CRON
+chmod +x /etc/cron.daily/docker-cleanup
+
+echo "VM hardening + cleanup cron complete."
 STARTUP
 )
 
@@ -118,6 +129,7 @@ STARTUP
     --tags=http-server
     --address="$STATIC_IP"
     --metadata=google-logging-enabled=true,startup-script="$STARTUP_SCRIPT"
+    --container-mount-host-path=host-path=/var/openclaw-brain,mount-path=/data/openclaw-brain
   )
 
   if [[ -n "$SERVICE_ACCOUNT" ]]; then

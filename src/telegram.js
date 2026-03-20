@@ -542,7 +542,7 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
 
         // Roundup
         if (matched.intent === 'roundup_daily') {
-          const deps = { config, anthropic, gmail, calendar, tasks, brain };
+          const deps = { config, anthropic, octokit, gmail, calendar, tasks, brain };
           await sendReply(chatId, '📰 Sending daily roundup...');
           try {
             await sendDailyRoundup(deps);
@@ -1301,7 +1301,7 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
       // Roundup commands — send test digests
       if (lower.startsWith('roundup')) {
         const roundupCmd = lower.replace(/^roundup\s*/, '').trim();
-        const deps = { config, anthropic, gmail, calendar, tasks, brain };
+        const deps = { config, anthropic, octokit, gmail, calendar, tasks, brain };
 
         if (roundupCmd.startsWith('add ')) {
           const topic = messageBody.replace(/^roundup\s+add\s+/i, '').trim();
@@ -1775,7 +1775,7 @@ async function startTelegramApp({ config, anthropic, openai, octokit, storage, b
             return;
           }
           if (intent.intent === 'roundup_daily') {
-            const rdeps = { config, anthropic, gmail, calendar, tasks, brain };
+            const rdeps = { config, anthropic, octokit, gmail, calendar, tasks, brain };
             await sendReply(chatId, '📰 Sending daily roundup...');
             try { await sendDailyRoundup(rdeps); await sendReply(chatId, '✅ Daily roundup sent!'); }
             catch (err) { await sendReply(chatId, `❌ Daily roundup failed: ${(err?.message || 'unknown').slice(0, 300)}`); }
