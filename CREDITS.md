@@ -1,6 +1,6 @@
 # Credits & Appreciation
 
-OpenClaw Secure Setup was built by humans and robots together.
+Penny was built by humans and robots together.
 
 ## Human
 

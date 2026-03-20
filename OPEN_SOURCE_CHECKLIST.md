@@ -62,7 +62,7 @@ Before publishing to GitHub, verify:
 - [ ] Add badges to README: build status, license, tests
 - [ ] Share announcement
 - [ ] Monitor issues and respond to questions
-- [ ] Add examples of PRs created by OpenClaw
+- [ ] Add examples of PRs created by Penny
 
 ---
 

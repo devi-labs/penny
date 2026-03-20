@@ -78,8 +78,8 @@ If you see a version number (like `v20.x.x`), you're good. If not:
 ### 2. Download Penny
 
 ```bash
-git clone https://github.com/devi-labs/penny-secure-setup.git
-cd penny-secure-setup
+git clone https://github.com/devi-labs/penny.git
+cd penny
 npm install
 ```
 

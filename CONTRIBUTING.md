@@ -7,8 +7,8 @@ Thanks for your interest in contributing! This doc covers how to get set up and 
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/devi-labs/penny-secure-setup.git
-cd penny-secure-setup
+git clone https://github.com/devi-labs/penny.git
+cd penny
 npm install
 ```
 
