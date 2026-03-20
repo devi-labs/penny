@@ -1,6 +1,7 @@
 'use strict';
 
 const { createTelegramClient } = require('./clients/telegram');
+const { getLearnNudge } = require('./learn');
 
 // Helper: parse comma-separated env string into array
 function parseList(s) {
@@ -27,9 +28,63 @@ async function sendTelegramDigest(config, brain, body, subject) {
   }
 }
 
-// Fetch recent tweets via RSSHub (free, no API key needed), with Google News fallback
+// Fetch recent tweets — Twitter API v2 (primary), RSSHub (fallback), Google News (last resort)
 async function fetchTweets(bearerToken, handle) {
-  // Try RSSHub public instances for actual tweet content
+  // ── Twitter API v2 (requires X_BEARER_TOKEN) ────────────────────
+  if (bearerToken) {
+    try {
+      // Get user ID from username
+      const userResp = await fetch(`https://api.x.com/2/users/by/username/${encodeURIComponent(handle)}`, {
+        headers: { Authorization: `Bearer ${bearerToken}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (userResp.ok) {
+        const userData = await userResp.json();
+        const userId = userData.data?.id;
+        if (userId) {
+          // Fetch tweets from yesterday only
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          const startOfYesterday = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate()).toISOString();
+          const endOfYesterday = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate() + 1).toISOString();
+          const params = new URLSearchParams({
+            'tweet.fields': 'created_at,text',
+            max_results: '10',
+            start_time: startOfYesterday,
+            end_time: endOfYesterday,
+            exclude: 'replies,retweets',
+          });
+          const tweetsResp = await fetch(`https://api.x.com/2/users/${userId}/tweets?${params}`, {
+            headers: { Authorization: `Bearer ${bearerToken}` },
+            signal: AbortSignal.timeout(10000),
+          });
+          if (tweetsResp.ok) {
+            const tweetsData = await tweetsResp.json();
+            const tweets = (tweetsData.data || []).map(t => ({
+              text: t.text?.slice(0, 280) || '',
+              date: t.created_at ? new Date(t.created_at).toLocaleDateString() : '',
+              link: `https://x.com/${handle}/status/${t.id}`,
+            }));
+            if (tweets.length) {
+              console.log(`[roundup] Got ${tweets.length} tweets for @${handle} via Twitter API v2`);
+              return tweets;
+            }
+            console.log(`[roundup] No tweets yesterday for @${handle} via API v2`);
+          } else {
+            const errBody = await tweetsResp.text().catch(() => '');
+            console.error(`[roundup] Twitter API v2 tweets error for @${handle}: ${tweetsResp.status} ${errBody.slice(0, 200)}`);
+          }
+        }
+      } else {
+        const errBody = await userResp.text().catch(() => '');
+        console.error(`[roundup] Twitter API v2 user lookup error for @${handle}: ${userResp.status} ${errBody.slice(0, 200)}`);
+      }
+    } catch (err) {
+      console.error(`[roundup] Twitter API v2 error for @${handle}:`, err?.message || err);
+    }
+  }
+
+  // ── RSSHub fallback (free, no API key) ──────────────────────────
   const rsshubHosts = ['https://rsshub.app', 'https://rsshub.rssforever.com'];
   for (const host of rsshubHosts) {
     try {
@@ -58,9 +113,9 @@ async function fetchTweets(bearerToken, handle) {
     }
   }
 
-  // Fallback: Google News RSS for mentions about this person
+  // ── Google News fallback (last resort) ──────────────────────────
   try {
-    console.log(`[roundup] RSSHub unavailable for @${handle}, falling back to Google News`);
+    console.log(`[roundup] API + RSSHub unavailable for @${handle}, falling back to Google News`);
     const articles = await fetchNewsRSS(`"@${handle}" OR "${handle}" twitter`, 3);
     return articles.map(a => ({
       text: a.title,
@@ -103,10 +158,10 @@ async function fetchNewsRSS(topic, maxItems = 10) {
   }
 }
 
-// Fetch LinkedIn activity for a person (best effort via Google News)
-async function fetchLinkedInUpdates(name) {
+// Fetch news mentions of a person associated with LinkedIn (not actual LinkedIn posts)
+async function fetchLinkedInMentions(name) {
   const displayName = name.replace(/-/g, ' ');
-  return fetchNewsRSS(`${displayName} linkedin`, 5);
+  return fetchNewsRSS(`"${displayName}"`, 5);
 }
 
 // Use Claude to compile a digest
@@ -118,7 +173,7 @@ async function compileDigest(anthropic, model, sections, kind) {
       model,
       max_tokens: 2000,
       system:
-        `You are OpenClaw's digest writer. Compile these raw items into a clean, scannable ${kind} email digest. ` +
+        `You are a digest writer. Compile these raw items into a clean, scannable ${kind} email digest. ` +
         'Keep it concise — short summaries, bullet points, include all links. ' +
         'Do not invent information. Do not add items that are not in the source data.',
       messages: [{ role: 'user', content: `Compile this into a readable ${kind} digest email:\n\n${rawContent}` }],
@@ -134,12 +189,14 @@ async function compileDigest(anthropic, model, sections, kind) {
 // ── Daily Roundup ────────────────────────────────────────────────
 // News topics + Twitter + LinkedIn, sent every day
 
-async function sendDailyRoundup({ config, anthropic, gmail, calendar, tasks, brain }) {
+async function sendDailyRoundup({ config, anthropic, octokit, gmail, calendar, tasks, brain }) {
   const rc = config.roundup;
   const envTopics = parseList(rc.dailyTopics);
   const brainTopics = brain ? await brain.loadRoundupTopics() : [];
   const dailyTopics = [...new Set([...envTopics, ...brainTopics])];
-  const handles = parseList(rc.twitterHandles);
+  const envHandles = parseList(rc.twitterHandles);
+  const brainHandles = brain ? await brain.loadRoundupHandles() : [];
+  const handles = [...new Set([...envHandles, ...brainHandles])];
   const linkedinNames = parseList(rc.linkedinNames);
 
   const canEmail = gmail?.enabled && rc.emailTo;
@@ -182,6 +239,18 @@ async function sendDailyRoundup({ config, anthropic, gmail, calendar, tasks, bra
     }
   }
 
+  // Learn nudge
+  if (brain) {
+    try {
+      const nudge = await getLearnNudge(brain, octokit || null, config);
+      if (nudge) {
+        sections.push({ heading: '🎓 Coding Lesson', items: [nudge] });
+      }
+    } catch (err) {
+      console.error('[roundup] Learn nudge error:', err?.message || err);
+    }
+  }
+
   // Twitter/X
   if (handles.length) {
     const allTweets = [];
@@ -205,14 +274,15 @@ async function sendDailyRoundup({ config, anthropic, gmail, calendar, tasks, bra
     }
   }
 
-  // LinkedIn
+  // People in the news (from LinkedIn names config)
   if (linkedinNames.length) {
-    const allUpdates = [];
+    const allMentions = [];
     for (const name of linkedinNames) {
-      const updates = await fetchLinkedInUpdates(name);
-      allUpdates.push(...updates.map(u => `${name}: ${u.title} — ${u.link}`));
+      const mentions = await fetchLinkedInMentions(name);
+      const displayName = name.replace(/-/g, ' ');
+      allMentions.push(...mentions.map(u => `• ${displayName}: ${u.title} — ${u.link}`));
     }
-    if (allUpdates.length) sections.push({ heading: '💼 LinkedIn', items: allUpdates });
+    if (allMentions.length) sections.push({ heading: '👤 People in the News', items: allMentions });
   }
 
   if (!sections.length) { console.log('[roundup] No content for daily roundup'); return null; }
@@ -224,7 +294,15 @@ async function sendDailyRoundup({ config, anthropic, gmail, calendar, tasks, bra
     body = sections.map(s => `${s.heading}\n${s.items.join('\n')}`).join('\n\n');
   }
 
-  const subject = `OpenClaw Daily — ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`;
+  let githubUser = '';
+  if (octokit) {
+    try {
+      const { data } = await octokit.users.getAuthenticated();
+      githubUser = data.name || data.login || '';
+    } catch { /* ignore */ }
+  }
+  const datePart = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const subject = githubUser ? `Roundup for ${githubUser}, ${datePart}` : `Roundup for ${datePart}`;
   if (gmail?.enabled && rc.emailTo) {
     try {
       await gmail.sendEmail({ to: rc.emailTo, subject, body, from: rc.emailFrom || undefined });
@@ -242,7 +320,7 @@ async function sendDailyRoundup({ config, anthropic, gmail, calendar, tasks, bra
 // ── Weekly Roundup ───────────────────────────────────────────────
 // Deep-dive topics, sent on the configured day (default: Saturday)
 
-async function sendWeeklyRoundup({ config, anthropic, gmail, brain }) {
+async function sendWeeklyRoundup({ config, anthropic, octokit, gmail, brain }) {
   const rc = config.roundup;
   const topics = parseList(rc.weeklyTopics);
 
@@ -273,7 +351,15 @@ async function sendWeeklyRoundup({ config, anthropic, gmail, brain }) {
     body = sections.map(s => `${s.heading}\n${s.items.join('\n')}`).join('\n\n');
   }
 
-  const subject = `OpenClaw Weekly — ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+  let githubUser = '';
+  if (octokit) {
+    try {
+      const { data } = await octokit.users.getAuthenticated();
+      githubUser = data.name || data.login || '';
+    } catch { /* ignore */ }
+  }
+  const datePart = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const subject = githubUser ? `Weekly Roundup for ${githubUser}, ${datePart}` : `Weekly Roundup for ${datePart}`;
   if (canEmail) {
     await gmail.sendEmail({ to: rc.emailTo, subject, body });
     console.log(`[roundup] Weekly roundup sent to ${rc.emailTo}`);
@@ -303,15 +389,27 @@ function startRoundupScheduler(deps) {
   let lastDailySent = null;
   let lastWeeklySent = null;
 
-  const CHECK_INTERVAL = 60 * 60 * 1000;
+  const CHECK_INTERVAL = 5 * 60 * 1000; // check every 5 minutes for more precise timing
+
+  // Get current hour in EST/EDT
+  function estHour() {
+    return parseInt(new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }), 10);
+  }
+  function estDay() {
+    return new Date().toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'long' }).toLowerCase();
+  }
+  function estDateKey() {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); // YYYY-MM-DD
+  }
 
   async function check() {
-    const now = new Date();
-    const today = DAY_NAMES[now.getDay()];
-    const dateKey = now.toISOString().slice(0, 10);
+    const hour = estHour();
+    const today = estDay();
+    const dateKey = estDateKey();
 
-    // Daily — send every day after 8am
-    if (hasDaily && now.getHours() >= 8 && lastDailySent !== dateKey) {
+    // Daily — send every day at configured hour (EST), only during that hour
+    const sendHour = rc.sendHour || 9;
+    if (hasDaily && hour === sendHour && lastDailySent !== dateKey) {
       lastDailySent = dateKey;
       try {
         await sendDailyRoundup(deps);
@@ -320,8 +418,8 @@ function startRoundupScheduler(deps) {
       }
     }
 
-    // Weekly — send on the configured day after 8am
-    if (hasWeekly && today === rc.weeklyDay.toLowerCase() && now.getHours() >= 8 && lastWeeklySent !== dateKey) {
+    // Weekly — send on the configured day at configured hour (EST)
+    if (hasWeekly && today === rc.weeklyDay.toLowerCase() && hour === sendHour && lastWeeklySent !== dateKey) {
       lastWeeklySent = dateKey;
       try {
         await sendWeeklyRoundup(deps);

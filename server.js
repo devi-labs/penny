@@ -37,8 +37,8 @@ const { indexRepos } = require('./src/repo-index');
   // Create Calendar client (reuses Gmail OAuth2 creds)
   const calendar = createCalendarClient(config.gmail);
 
-  // Create Tasks client (reuses Gmail OAuth2 creds)
-  const tasksClient = createTasksClient(config.gmail);
+  // Create Tasks client (reuses Gmail OAuth2 creds + optional default list)
+  const tasksClient = createTasksClient({ ...config.gmail, defaultListId: config.tasks?.listId });
 
   const deps = { config, anthropic, openai, octokit, storage, brain, gmail, calendar, tasks: tasksClient };
 

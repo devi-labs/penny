@@ -2,17 +2,26 @@
 
 const { google } = require('googleapis');
 
-function createTasksClient({ clientId, clientSecret, refreshToken }) {
+function createTasksClient({ clientId, clientSecret, refreshToken, defaultListId }) {
   if (!clientId || !clientSecret || !refreshToken) return null;
 
   const oauth2 = new google.auth.OAuth2(clientId, clientSecret);
   oauth2.setCredentials({ refresh_token: refreshToken });
 
   const tasks = google.tasks({ version: 'v1', auth: oauth2 });
+  const defaultTasklist = defaultListId || '@default';
 
-  async function listTasks({ maxResults = 100, showCompleted = false } = {}) {
+  async function listTaskLists() {
+    const res = await tasks.tasklists.list({ maxResults: 100 });
+    return (res.data.items || []).map(tl => ({
+      id: tl.id,
+      title: tl.title || '(untitled)',
+    }));
+  }
+
+  async function listTasks({ tasklist, maxResults = 100, showCompleted = false } = {}) {
     const res = await tasks.tasks.list({
-      tasklist: '@default',
+      tasklist: tasklist || defaultTasklist,
       maxResults,
       showCompleted,
       showHidden: false,
@@ -28,13 +37,13 @@ function createTasksClient({ clientId, clientSecret, refreshToken }) {
     }));
   }
 
-  async function addTask({ title, notes, due }) {
+  async function addTask({ title, notes, due, tasklist }) {
     const body = { title };
     if (notes) body.notes = notes;
     if (due) body.due = new Date(due).toISOString();
 
     const res = await tasks.tasks.insert({
-      tasklist: '@default',
+      tasklist: tasklist || defaultTasklist,
       requestBody: body,
     });
 
@@ -44,9 +53,9 @@ function createTasksClient({ clientId, clientSecret, refreshToken }) {
     };
   }
 
-  async function completeTask(taskId) {
+  async function completeTask(taskId, tasklist) {
     const res = await tasks.tasks.patch({
-      tasklist: '@default',
+      tasklist: tasklist || defaultTasklist,
       task: taskId,
       requestBody: { status: 'completed' },
     });
@@ -54,14 +63,14 @@ function createTasksClient({ clientId, clientSecret, refreshToken }) {
     return { id: res.data.id, title: res.data.title };
   }
 
-  async function deleteTask(taskId) {
+  async function deleteTask(taskId, tasklist) {
     await tasks.tasks.delete({
-      tasklist: '@default',
+      tasklist: tasklist || defaultTasklist,
       task: taskId,
     });
   }
 
-  return { listTasks, addTask, completeTask, deleteTask, enabled: true };
+  return { listTaskLists, listTasks, addTask, completeTask, deleteTask, enabled: true };
 }
 
 module.exports = { createTasksClient };

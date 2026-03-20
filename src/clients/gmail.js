@@ -70,10 +70,14 @@ function createGmailClient({ clientId, clientSecret, refreshToken, userEmail }) 
   }
 
   async function sendEmail({ to, subject, body }) {
+    if (!to) throw new Error('Missing "to" address');
+    if (!subject) throw new Error('Missing subject');
+
     const raw = [
       `From: ${userEmail}`,
       `To: ${to}`,
       `Subject: ${subject}`,
+      'MIME-Version: 1.0',
       'Content-Type: text/plain; charset=utf-8',
       '',
       body,
@@ -85,10 +89,17 @@ function createGmailClient({ clientId, clientSecret, refreshToken, userEmail }) 
       .replace(/\//g, '_')
       .replace(/=+$/, '');
 
-    await gmail.users.messages.send({
+    const res = await gmail.users.messages.send({
       userId: 'me',
       requestBody: { raw: encoded },
     });
+
+    if (!res.data?.id) {
+      throw new Error(`Gmail send returned no message ID — response: ${JSON.stringify(res.data).slice(0, 200)}`);
+    }
+
+    console.log(`[gmail] Email sent to ${to}, messageId: ${res.data.id}`);
+    return { id: res.data.id, threadId: res.data.threadId };
   }
 
   return { listMessages, readMessage, sendEmail, enabled: true };

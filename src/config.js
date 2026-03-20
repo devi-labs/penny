@@ -5,6 +5,9 @@ const config = {
     botToken: process.env.TELEGRAM_BOT_TOKEN || '',
     allowedUserIds: process.env.TELEGRAM_ALLOWED_USER_IDS || '',
     joinCode: process.env.TELEGRAM_JOIN_CODE || '',
+    adminUserId: process.env.TELEGRAM_ADMIN_USER_ID || '',
+    adminEmail: process.env.ADMIN_EMAIL || '',
+    supportKeyword: process.env.SUPPORT_KEYWORD || 'support',
   },
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY,
@@ -30,7 +33,11 @@ const config = {
     // Weekly digest (sent on weeklyDay)
     weeklyTopics: process.env.ROUNDUP_WEEKLY_TOPICS || '',
     weeklyDay: process.env.ROUNDUP_WEEKLY_DAY || 'saturday',
+    sendHour: parseInt(process.env.ROUNDUP_SEND_HOUR || '9', 10),
     xBearerToken: process.env.X_BEARER_TOKEN || '',
+  },
+  tasks: {
+    listId: process.env.GOOGLE_TASKS_LIST_ID || '',
   },
   reservations: {
     blandApiKey: process.env.BLAND_API_KEY || '',
@@ -40,6 +47,10 @@ const config = {
   llmProvider: process.env.LLM_PROVIDER || 'anthropic', // 'anthropic' or 'openai'
   github: {
     token: process.env.GITHUB_TOKEN,
+  },
+  learn: {
+    repo: process.env.LEARN_REPO || '',
+    projectRepos: process.env.LEARN_PROJECT_REPOS || '',
   },
   gcp: {
     projectId: process.env.GCP_PROJECT_ID || '',

@@ -94,9 +94,15 @@ function sanitizePlanForStorage(plan) {
 function createBrain({ storage, bucket, prefix }) {
   const gcsEnabled = !!storage && !!bucket;
   const enabled = true; // always enabled — local storage is always available
+  const verbose = process.env.BRAIN_DEBUG === '1';
+
+  function brainLog(...args) {
+    if (verbose) console.log('[brain]', ...args);
+  }
 
   // Ensure local brain dir exists
   fs.mkdirSync(LOCAL_BRAIN_DIR, { recursive: true });
+  console.log(`[brain] Initialized — local: ${LOCAL_BRAIN_DIR}, GCS: ${gcsEnabled ? `${bucket}/${prefix}` : 'disabled'}`);
 
   // Async GCS backup (fire-and-forget, never blocks)
   function backupToGcs(objPath, data) {
@@ -109,16 +115,22 @@ function createBrain({ storage, bucket, prefix }) {
   // Read: local first, fall back to GCS if local miss
   async function readJson(objPath) {
     const local = localReadJson(objPath);
-    if (local) return local;
-    if (!gcsEnabled) return null;
+    if (local) { brainLog('read (local hit)', objPath); return local; }
+    if (!gcsEnabled) { brainLog('read (miss)', objPath); return null; }
     const remote = await gcsReadJson(storage, bucket, objPath);
-    if (remote) localWriteJson(objPath, remote); // cache locally
+    if (remote) {
+      brainLog('read (GCS hit, cached locally)', objPath);
+      localWriteJson(objPath, remote);
+    } else {
+      brainLog('read (miss everywhere)', objPath);
+    }
     return remote;
   }
 
   // Write: local (sync, fast) + async GCS backup
   async function writeJson(objPath, data) {
     localWriteJson(objPath, data);
+    brainLog('write', objPath, gcsEnabled ? '(+GCS backup)' : '(local only)');
     backupToGcs(objPath, data);
   }
 
@@ -136,6 +148,9 @@ function createBrain({ storage, bucket, prefix }) {
       updatedAt: nowIso(),
       version: 1,
     };
+    // Prune large fields to prevent unbounded growth
+    if (Array.isArray(merged.messages)) merged.messages = merged.messages.slice(-20);
+    if (Array.isArray(merged.errors)) merged.errors = merged.errors.slice(-10);
     await writeJson(objPath, merged);
   }
 
@@ -245,6 +260,17 @@ function createBrain({ storage, bucket, prefix }) {
     await writeJson(objPath, { topics, updatedAt: nowIso() });
   }
 
+  async function loadRoundupHandles() {
+    const objPath = brainObjectPath(prefix, 'global', 'roundup-handles');
+    const data = await readJson(objPath);
+    return Array.isArray(data?.handles) ? data.handles : [];
+  }
+
+  async function saveRoundupHandles(handles) {
+    const objPath = brainObjectPath(prefix, 'global', 'roundup-handles');
+    await writeJson(objPath, { handles, updatedAt: nowIso() });
+  }
+
   async function saveActiveChat(chatId) {
     const objPath = brainObjectPath(prefix, 'global', 'active-chats');
     const existing = (await readJson(objPath)) || { chatIds: [] };
@@ -272,7 +298,7 @@ function createBrain({ storage, bucket, prefix }) {
       error: clampString(error, 500),
       at: nowIso(),
     });
-    existing.errors = errors.slice(-100);
+    existing.errors = errors.slice(-25);
     existing.updatedAt = nowIso();
     await writeJson(objPath, existing);
   }
@@ -296,6 +322,8 @@ function createBrain({ storage, bucket, prefix }) {
     recordSkillError,
     loadRoundupTopics,
     saveRoundupTopics,
+    loadRoundupHandles,
+    saveRoundupHandles,
     saveActiveChat,
     loadActiveChats,
   };
